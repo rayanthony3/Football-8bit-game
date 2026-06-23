@@ -34,6 +34,8 @@ export class GameScene extends Phaser.Scene {
     this._showCoinToss();
     this.input.addPointer(3);
     this.cameras.main.fadeIn(400);
+    // Resume from halftime
+    this.events.on('resume', this._onResume, this);
   }
 
   // ─── COORDINATE HELPERS ──────────────────────────────────────────────────
@@ -519,8 +521,8 @@ export class GameScene extends Phaser.Scene {
       // Full sim: CPU calls both sides
       this.gs.selectedOffPlay = this.ai.chooseOffensePlay();
       this.gs.selectedDefPlay = this.ai.chooseDefensePlay(this.gs.selectedOffPlay);
-      this._showToast(`CPU: ${this.gs.selectedOffPlay.name} vs ${this.gs.selectedDefPlay.name}`, 1400);
-      this.time.delayedCall(1600, () => this._goPreSnap());
+      this._showToast(`CPU: ${this.gs.selectedOffPlay.name} vs ${this.gs.selectedDefPlay.name}`, 700);
+      this.time.delayedCall(800, () => this._goPreSnap());
       return;
     }
 
@@ -574,8 +576,8 @@ export class GameScene extends Phaser.Scene {
     this._snapBtnLabel.setText('▶ SNAP');
 
     if (this.mode !== CFG.GAME_MODES.PLAYER) {
-      // Auto-snap after a beat
-      this.time.delayedCall(2000, () => {
+      const snapDelay = this.mode === CFG.GAME_MODES.SIM ? 600 : 2000;
+      this.time.delayedCall(snapDelay, () => {
         if (this.gs.phase === 'PRE_SNAP') this._snap();
       });
     }
@@ -704,12 +706,15 @@ export class GameScene extends Phaser.Scene {
       });
 
     } else if (isPass) {
-      // QB drops back
-      const dropX = isSack ? qbX + offDir * yards * YW : qbX - offDir * 22;
+      // ── QB 3-step drop ────────────────────────────────────────────────────
+      const dropX = isSack
+        ? Phaser.Math.Clamp(qbX + offDir * yards * YW, CFG.EZ_W + 5, CFG.FIELD_WORLD_W - CFG.EZ_W - 5)
+        : qbX - offDir * 32;
+
       if (qbS) {
         this.tweens.add({
-          targets: qbS, x: dropX, y: qbY + 5,
-          duration: isSack ? 620 : 380, ease: 'Power1',
+          targets: qbS, x: dropX, y: qbY + 8,
+          duration: isSack ? 850 : 520, ease: 'Power2.easeOut',
           onUpdate: () => {
             this._syncLabel(qbS);
             if (!isSack) this._ball.setPosition(qbS.x, qbS.y);
@@ -718,20 +723,24 @@ export class GameScene extends Phaser.Scene {
         });
       }
 
-      // WR routes
+      // ── WRs run crisp routes — capped speed so coverage has a chance ──────
       const wrTargets = {};
       for (const [k, wrS] of offWRs) {
-        const dm  = offPlay?.id === 'fl' ? 2.0 : offPlay?.id === 'ps' ? 1.5 :
-                    offPlay?.id === 'sl' ? 0.7 : 1.0;
-        const yd  = Math.max(3, (Math.abs(yards) + 5) * dm);
-        const tx  = Phaser.Math.Clamp(wrS.x + offDir * yd * YW, CFG.EZ_W + 5, CFG.FIELD_WORLD_W - CFG.EZ_W - 5);
-        const ty  = Phaser.Math.Clamp(wrS.y + (Math.random() - 0.5) * 95, CFG.FIELD_FAR_Y + 5, CFG.FIELD_NEAR_Y - 5);
+        const wrSpd = wrS._player?.stats?.spd ?? 6;
+        const dm    = offPlay?.id === 'fl' ? 2.2 : offPlay?.id === 'ps' ? 1.6 :
+                      offPlay?.id === 'sl' ? 0.8 : offPlay?.id === 'cr' ? 1.1 : 1.0;
+        const yd    = Math.max(3, (Math.abs(yards) + 5) * dm);
+        const tx    = Phaser.Math.Clamp(wrS.x + offDir * yd * YW, CFG.EZ_W + 5, CFG.FIELD_WORLD_W - CFG.EZ_W - 5);
+        const ty    = Phaser.Math.Clamp(wrS.y + (Math.random() - 0.5) * 90, CFG.FIELD_FAR_Y + 5, CFG.FIELD_NEAR_Y - 5);
         wrTargets[k] = { x: tx, y: ty };
+        // Fast WR (spd 10) tops at 1000ms; average (spd 6) runs at 1300ms
+        const routeDur = Math.max(1000, 1350 - (wrSpd - 5) * 60);
         this.tweens.add({ targets: wrS, x: tx, y: ty, scale: screenYToScale(ty),
-          duration: 860, delay: 130, ease: 'Sine.easeInOut', onUpdate: () => this._syncLabel(wrS) });
+          duration: routeDur, delay: 160, ease: 'Sine.easeInOut',
+          onUpdate: () => this._syncLabel(wrS) });
       }
 
-      // Man coverage: each DB shadows nearest WR
+      // ── Coverage reacts ───────────────────────────────────────────────────
       if (isManCov) {
         const paired = new Set();
         for (const [wk, wrS] of offWRs) {
@@ -743,83 +752,102 @@ export class GameScene extends Phaser.Scene {
             if (d < bestD) { bestD = d; best = [dk, dbS]; }
           }
           if (best) {
+            const dbSpd = best[1]._player?.stats?.spd ?? 6;
+            // DBs slightly slower than WRs (coverage disadvantage = realistic)
+            const covDur = Math.max(1080, 1420 - (dbSpd - 5) * 55);
             paired.add(best[0]);
-            this.tweens.add({ targets: best[1], x: tgt.x - offDir * 10, y: tgt.y,
-              scale: screenYToScale(tgt.y), duration: 860, delay: 190, ease: 'Sine.easeInOut',
-              onUpdate: () => this._syncLabel(best[1]) });
+            this.tweens.add({ targets: best[1], x: tgt.x - offDir * 12, y: tgt.y,
+              scale: screenYToScale(tgt.y), duration: covDur, delay: 210,
+              ease: 'Sine.easeInOut', onUpdate: () => this._syncLabel(best[1]) });
           }
         }
+        // Unpaired DBs shift toward play side
         for (const [dk, dbS] of defDBs) {
           if (!paired.has(dk)) {
-            this.tweens.add({ targets: dbS, x: dbS.x + offDir * 36, y: dbS.y,
-              duration: 580, ease: 'Power2', onUpdate: () => this._syncLabel(dbS) });
+            this.tweens.add({ targets: dbS, x: dbS.x + offDir * 44, y: dbS.y,
+              duration: 700, ease: 'Power2', onUpdate: () => this._syncLabel(dbS) });
           }
         }
       } else {
-        // Zone drop
+        // Zone drop — everyone backs off
         for (const [,dbS] of defDBs) {
-          this.tweens.add({ targets: dbS, x: dbS.x - offDir * (12 + Math.random() * 18),
-            y: dbS.y + (Math.random()-0.5)*30, duration: 600, ease: 'Power1',
+          this.tweens.add({ targets: dbS,
+            x: dbS.x - offDir * (16 + Math.random() * 22),
+            y: dbS.y + (Math.random() - 0.5) * 34, duration: 740, ease: 'Power1',
             onUpdate: () => this._syncLabel(dbS) });
         }
       }
 
-      // Ball throw at 660ms (unless sacked)
+      // ── QB makes read ~1000ms after snap: throw or scramble ──────────────
       if (!isSack) {
-        this.time.delayedCall(660, () => {
-          const candidates = offWRs.filter(([k]) => wrTargets[k]);
-          const chosen  = candidates[Math.floor(Math.random() * candidates.length)];
-          const chosenS = chosen?.[1];
-          const dest    = chosen ? wrTargets[chosen[0]] : { x: qbX + offDir * 80, y: qbY };
-
-          this._ball.setPosition(qbS?.x ?? qbX, qbS?.y ?? qbY).setVisible(true);
-
-          // Arced pass: two-part tween
-          const midX    = (this._ball.x + dest.x) / 2;
-          const peakY   = Math.min(this._ball.y, dest.y) - 44;
-          this.tweens.add({
-            targets: this._ball, x: midX, y: peakY,
-            duration: 280, ease: 'Sine.easeOut',
-            onComplete: () => {
+        const throwDelay = 900 + Math.random() * 380;
+        this.time.delayedCall(throwDelay, () => {
+          if (outcome.isScramble) {
+            // QB tucks and takes off
+            const scrX = Phaser.Math.Clamp(
+              (qbS?.x ?? dropX) + offDir * yards * YW, CFG.EZ_W + 5, CFG.FIELD_WORLD_W - CFG.EZ_W - 5);
+            const scrY = Phaser.Math.Clamp(
+              (qbS?.y ?? qbY) + (Math.random() - 0.5) * 30, CFG.FIELD_FAR_Y + 5, CFG.FIELD_NEAR_Y - 5);
+            this._ball.setPosition(qbS?.x ?? dropX, qbS?.y ?? qbY).setVisible(true);
+            if (qbS) {
               this.tweens.add({
-                targets: this._ball, x: dest.x, y: dest.y,
-                duration: 290, ease: 'Sine.easeIn',
-                onComplete: () => {
-                  if (isInterception) {
-                    const intDB = defDBs[0]?.[1];
-                    if (intDB) this.tweens.add({ targets: this._ball, x: intDB.x, y: intDB.y,
-                      duration: 200, onComplete: () => { this._ball.setVisible(false); onDone(); } });
-                    else { this._ball.setVisible(false); onDone(); }
-                  } else if (result === 'INCOMPLETE') {
-                    this.tweens.add({ targets: this._ball, y: dest.y + 22, alpha: 0,
-                      duration: 200, ease: 'Power2.easeIn',
-                      onComplete: () => { this._ball.setAlpha(1).setVisible(false); onDone(); } });
-                  } else {
-                    // YAC: receiver runs after catch based on speed/agility stats
-                    this._ball.setVisible(false);
-                    const wrSpd = chosenS?._player?.stats?.spd ?? 6;
-                    const wrAgi = chosenS?._player?.stats?.agi ?? 6;
-                    const yacYards = Math.max(0, Math.round((wrSpd + wrAgi - 8) / 3 + Math.random() * 3));
-                    if (chosenS && yacYards > 0) {
-                      const yacX = Phaser.Math.Clamp(
-                        dest.x + offDir * yacYards * YW, CFG.EZ_W + 5, CFG.FIELD_WORLD_W - CFG.EZ_W - 5);
-                      const yacY = Phaser.Math.Clamp(
-                        dest.y + (Math.random() - 0.5) * 20, CFG.FIELD_FAR_Y + 5, CFG.FIELD_NEAR_Y - 5);
-                      this.tweens.add({
-                        targets: chosenS, x: yacX, y: yacY, scale: screenYToScale(yacY),
-                        duration: 280 + yacYards * 35, ease: 'Sine.easeOut',
-                        onUpdate: () => this._syncLabel(chosenS),
-                        onComplete: () => this._animatePursuit(chosenS, [...defDBs, ...defLBs], onDone),
-                      });
-                    } else {
-                      if (chosenS) this._animatePursuit(chosenS, [...defDBs, ...defLBs], onDone);
-                      else onDone();
-                    }
-                  }
-                },
+                targets: qbS, x: scrX, y: scrY, scale: screenYToScale(scrY),
+                duration: 800, ease: 'Sine.easeInOut',
+                onUpdate: () => { this._syncLabel(qbS); this._ball.setPosition(qbS.x, qbS.y); },
+                onComplete: () => { this._ball.setVisible(false); this._animatePursuit(qbS, allDef, onDone); },
               });
-            },
-          });
+            } else onDone();
+          } else {
+            // Normal throw — pick a receiver
+            const candidates = offWRs.filter(([k]) => wrTargets[k]);
+            const chosen  = candidates[Math.floor(Math.random() * candidates.length)];
+            const chosenS = chosen?.[1];
+            const dest    = chosen ? wrTargets[chosen[0]] : { x: (qbS?.x ?? dropX) + offDir * 80, y: qbY };
+
+            this._ball.setPosition(qbS?.x ?? dropX, qbS?.y ?? qbY).setVisible(true);
+
+            const midX  = (this._ball.x + dest.x) / 2;
+            const peakY = Math.min(this._ball.y, dest.y) - 52;
+            this.tweens.add({
+              targets: this._ball, x: midX, y: peakY, duration: 290, ease: 'Sine.easeOut',
+              onComplete: () => {
+                this.tweens.add({
+                  targets: this._ball, x: dest.x, y: dest.y, duration: 280, ease: 'Sine.easeIn',
+                  onComplete: () => {
+                    if (isInterception) {
+                      const intDB = defDBs[0]?.[1];
+                      if (intDB) this.tweens.add({ targets: this._ball, x: intDB.x, y: intDB.y,
+                        duration: 220, onComplete: () => { this._ball.setVisible(false); onDone(); } });
+                      else { this._ball.setVisible(false); onDone(); }
+                    } else if (result === 'INCOMPLETE') {
+                      this.tweens.add({ targets: this._ball, y: dest.y + 26, alpha: 0,
+                        duration: 230, ease: 'Power2.easeIn',
+                        onComplete: () => { this._ball.setAlpha(1).setVisible(false); onDone(); } });
+                    } else {
+                      // YAC — receiver runs after catch
+                      this._ball.setVisible(false);
+                      const wrSpd = chosenS?._player?.stats?.spd ?? 6;
+                      const wrAgi = chosenS?._player?.stats?.agi ?? 6;
+                      const yacYards = Math.max(0, Math.round((wrSpd + wrAgi - 8) / 3 + Math.random() * 3));
+                      if (chosenS && yacYards > 0) {
+                        const yacX = Phaser.Math.Clamp(dest.x + offDir * yacYards * YW, CFG.EZ_W+5, CFG.FIELD_WORLD_W-CFG.EZ_W-5);
+                        const yacY = Phaser.Math.Clamp(dest.y + (Math.random()-0.5)*22, CFG.FIELD_FAR_Y+5, CFG.FIELD_NEAR_Y-5);
+                        this.tweens.add({
+                          targets: chosenS, x: yacX, y: yacY, scale: screenYToScale(yacY),
+                          duration: 310 + yacYards * 35, ease: 'Sine.easeOut',
+                          onUpdate: () => this._syncLabel(chosenS),
+                          onComplete: () => this._animatePursuit(chosenS, [...defDBs, ...defLBs], onDone),
+                        });
+                      } else {
+                        if (chosenS) this._animatePursuit(chosenS, [...defDBs, ...defLBs], onDone);
+                        else onDone();
+                      }
+                    }
+                  },
+                });
+              },
+            });
+          }
         });
       }
 
@@ -938,17 +966,7 @@ export class GameScene extends Phaser.Scene {
     if (outcome.result === 'PUNT')     { gs.stats[gs.possession].punts++; }
     if (outcome.result === 'TURNOVER') { gs.stats[1 - gs.possession].turnovers++; }
 
-    const W = CFG.WIDTH, H = CFG.HEIGHT;
-    const panelY = H - 150;
-
-    const panel = this._addOverlay(this.add.image(W/2, panelY, 'panel_md')
-      .setScrollFactor(0).setDepth(850));
-
-    this._addOverlay(this.add.text(W/2, panelY - 68, outcome.narrative || 'Play complete', {
-      fontSize: '13px', fontFamily: 'monospace', color: '#ffffff',
-      align: 'center', wordWrap: { width: 290 },
-    }).setScrollFactor(0).setDepth(851).setOrigin(0.5));
-
+    // ── Compute result text ─────────────────────────────────────────────────
     let resultLine = '', resultColor = '#aaddff';
 
     if (downResult === 'TOUCHDOWN') {
@@ -986,12 +1004,43 @@ export class GameScene extends Phaser.Scene {
       resultColor = '#888888';
     }
 
+    this._updateHUD();
+
+    // ── SIM mode: quick floating text, no panel ─────────────────────────────
+    if (this.mode === CFG.GAME_MODES.SIM) {
+      const W = CFG.WIDTH;
+      const simNarr = this.add.text(W/2, 88, outcome.narrative || 'Play complete', {
+        fontSize: '12px', fontFamily: 'monospace', color: '#ffffff',
+        stroke: '#000000', strokeThickness: 3, align: 'center', wordWrap: { width: 340 },
+      }).setScrollFactor(0).setDepth(900).setOrigin(0.5).setAlpha(0);
+      const simRes = this.add.text(W/2, 114, resultLine, {
+        fontSize: '14px', fontFamily: 'monospace', fontStyle: 'bold', color: resultColor,
+        stroke: '#000000', strokeThickness: 3,
+      }).setScrollFactor(0).setDepth(900).setOrigin(0.5).setAlpha(0);
+      this.tweens.add({ targets: [simNarr, simRes], alpha: 1, duration: 150 });
+      this.time.delayedCall(950, () => {
+        this.tweens.add({ targets: [simNarr, simRes], alpha: 0, duration: 200,
+          onComplete: () => { simNarr.destroy(); simRes.destroy(); } });
+      });
+      this.time.delayedCall(1200, () => this._advanceAfterPlay(outcome, downResult));
+      return;
+    }
+
+    // ── Full panel (COACH / PLAYER) ─────────────────────────────────────────
+    const W = CFG.WIDTH, H = CFG.HEIGHT;
+    const panelY = H - 150;
+
+    const panel = this._addOverlay(this.add.image(W/2, panelY, 'panel_md')
+      .setScrollFactor(0).setDepth(850));
+
+    this._addOverlay(this.add.text(W/2, panelY - 68, outcome.narrative || 'Play complete', {
+      fontSize: '13px', fontFamily: 'monospace', color: '#ffffff',
+      align: 'center', wordWrap: { width: 290 },
+    }).setScrollFactor(0).setDepth(851).setOrigin(0.5));
+
     this._addOverlay(this.add.text(W/2, panelY - 36, resultLine, {
       fontSize: '15px', fontFamily: 'monospace', fontStyle: 'bold', color: resultColor,
     }).setScrollFactor(0).setDepth(851).setOrigin(0.5));
-
-    // Updated scorebug scores
-    this._updateHUD();
 
     // Rotations display
     if (rotations.length > 0) {
@@ -1020,7 +1069,6 @@ export class GameScene extends Phaser.Scene {
     };
 
     continueBtn.on('pointerdown', doAdvance);
-    // Auto-advance for Coach/Sim after linger time
     if (this.mode !== CFG.GAME_MODES.PLAYER) {
       this.time.delayedCall(linger, doAdvance);
     }
@@ -1129,6 +1177,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ─── HALFTIME / GAMEOVER ──────────────────────────────────────────────────
+  _onResume() {
+    // Fired when HalfTimeScene resumes this scene
+    this._clearOverlays();
+    this._buildFieldMarkers();
+    this._panToYard(this.gs.ballYard, false);
+    this.cameras.main.fadeIn(300);
+    this.time.delayedCall(500, () => this._animateHuddle(() => this._startPlayCall()));
+  }
+
   _showHalftime() {
     this.scene.launch('HalfTimeScene', { gs: this.gs });
     this.scene.pause('GameScene');

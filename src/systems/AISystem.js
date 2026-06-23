@@ -70,6 +70,7 @@ export class AISystem {
     let isTurnover = false;
     let isSack = false;
     let isInterception = false;
+    let isScramble = false;
 
     const blitzBonus = defPlay?.type === 'BLITZ' ? 2 : 0;
     const coverageBonus = defPlay?.type === 'COVERAGE' ? 2 : 0;
@@ -103,6 +104,9 @@ export class AISystem {
       const intChance  = Math.max(0.03, (defDB + coverageBonus + preventBonus - qbRating) / 35);
       const compChance = Math.max(0.3, Math.min(0.85, (qbRating + wrRating) / 22 - coverageBonus * 0.05));
 
+      const qbMobility = offQB?.stats?.spd ?? 5;
+      const scrambleChance = Math.max(0, (qbMobility - 4) / 14) * 0.15;
+
       const rand = Math.random();
       if (rand < sackChance) {
         yards = -(Math.floor(Math.random() * 8) + 2);
@@ -116,7 +120,16 @@ export class AISystem {
         isTurnover = true;
         yards = 0;
         result = 'TURNOVER';
-      } else if (rand < sackChance + intChance + (1 - compChance)) {
+      } else if (rand < sackChance + intChance + scrambleChance) {
+        const scrYards = Math.max(0, Math.min(16, Math.round(1 + Math.random() * (qbMobility + 2))));
+        yards = scrYards;
+        narrative = yards >= 8
+          ? `${offQB?.name || 'QB'} takes off! Scrambles ${yards} yards!`
+          : `${offQB?.name || 'QB'} scrambles for ${yards} yards`;
+        isScramble = true;
+        result = 'GAIN';
+        gs.stats[gs.possession].rushYds += yards;
+      } else if (rand < sackChance + intChance + scrambleChance + (1 - compChance)) {
         narrative = `Incomplete pass by ${offQB?.name || 'QB'}`;
         yards = 0;
         result = 'INCOMPLETE';
@@ -166,7 +179,7 @@ export class AISystem {
       gs.stats[gs.possession].rushYds += Math.max(0, yards);
     }
 
-    return { yards, result, narrative, isTurnover, isSack, isInterception };
+    return { yards, result, narrative, isTurnover, isSack, isInterception, isScramble };
   }
 
   _avgRating(team, positions) {
