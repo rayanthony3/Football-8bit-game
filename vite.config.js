@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  base: './',
+  base: '/Football-8bit-game/',
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
