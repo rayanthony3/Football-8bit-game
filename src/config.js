@@ -8,14 +8,14 @@ export const CFG = {
   EZ_W: 130,
 
   // Perspective field (screen Y of sidelines)
-  FIELD_FAR_Y:  105,
-  FIELD_NEAR_Y: 345,
-  FIELD_FAR_HASH_Y:  162,
-  FIELD_NEAR_HASH_Y: 288,
+  FIELD_FAR_Y:  62,
+  FIELD_NEAR_Y: 442,
+  FIELD_FAR_HASH_Y:  152,
+  FIELD_NEAR_HASH_Y: 352,
 
   // Player scaling by depth
-  SCALE_FAR:  0.60,
-  SCALE_NEAR: 1.10,
+  SCALE_FAR:  0.50,
+  SCALE_NEAR: 1.20,
 
   // Game speeds (ms)
   PLAY_ANIM_MS: 1600,

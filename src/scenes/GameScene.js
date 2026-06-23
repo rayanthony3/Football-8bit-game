@@ -169,7 +169,7 @@ export class GameScene extends Phaser.Scene {
 
     // Ball graphic — drawn at (0,0) local; position set via setPosition()
     if (!this._ball) {
-      const b = this.add.graphics().setDepth(200);
+      const b = this.add.graphics().setDepth(500);
       b.fillStyle(CFG.COLORS.BALL);
       b.fillEllipse(0, 0, CFG.BALL_W * 1.4, CFG.BALL_H * 1.6);
       b.lineStyle(1.5, CFG.COLORS.BALL_STRIPE, 0.9);
@@ -201,12 +201,12 @@ export class GameScene extends Phaser.Scene {
     this._losLine = this.add.rectangle(
       yardToX(this.gs.ballYard), (CFG.FIELD_FAR_Y + CFG.FIELD_NEAR_Y) / 2,
       3, fieldH, 0xff8800, 0.85
-    ).setOrigin(0.5).setDepth(4);
+    ).setOrigin(0.5).setDepth(460);
 
     this._fdLine = this.add.rectangle(
       yardToX(this.gs.firstDownYard), (CFG.FIELD_FAR_Y + CFG.FIELD_NEAR_Y) / 2,
       2, fieldH, 0xffff00, 0.7
-    ).setOrigin(0.5).setDepth(4);
+    ).setOrigin(0.5).setDepth(460);
   }
 
   _updateFieldMarkers() {
@@ -216,7 +216,7 @@ export class GameScene extends Phaser.Scene {
   // ─── 90s SCOREBUG ────────────────────────────────────────────────────────
   _buildHUD() {
     const W = CFG.WIDTH;
-    this._hudDepth = 300;
+    this._hudDepth = 700;
 
     // Main scorebug background strip
     const bugH = 52;
@@ -324,7 +324,6 @@ export class GameScene extends Phaser.Scene {
   // ─── CAMERA ──────────────────────────────────────────────────────────────
   _setupCamera() {
     this.cameras.main.setBounds(0, 0, CFG.FIELD_WORLD_W, CFG.FIELD_WORLD_H);
-    this.cameras.main.setViewport(0, 56, CFG.WIDTH, CFG.HEIGHT - 56);
     this._panToYard(this.gs.ballYard, false);
   }
 
@@ -354,11 +353,11 @@ export class GameScene extends Phaser.Scene {
 
     // Snap / Play Call button (center bottom)
     this._snapBtn = this.add.rectangle(W/2, H - 22, 160, 36, 0x0a0a1e, 0.92)
-      .setScrollFactor(0).setDepth(250).setInteractive({ useHandCursor: true });
+      .setScrollFactor(0).setDepth(710).setInteractive({ useHandCursor: true });
     this._snapBtn.setStrokeStyle(1, 0x4488ff);
     this._snapBtnLabel = this.add.text(W/2, H - 22, '▶ PLAY CALL', {
       fontSize: '13px', fontFamily: 'monospace', color: '#aaddff',
-    }).setScrollFactor(0).setDepth(251).setOrigin(0.5);
+    }).setScrollFactor(0).setDepth(711).setOrigin(0.5);
     this._snapBtn.on('pointerdown', () => this._onSnapBtnPress());
     this._snapBtn.on('pointerover', () => this._snapBtn.setStrokeStyle(2, 0xffd700));
     this._snapBtn.on('pointerout',  () => this._snapBtn.setStrokeStyle(1, 0x4488ff));
@@ -374,25 +373,25 @@ export class GameScene extends Phaser.Scene {
     ];
     dirs.forEach(d => {
       const btn = this.add.circle(d.x, d.y, 20, 0x1a1a3a, 0.85)
-        .setScrollFactor(0).setDepth(250).setInteractive();
+        .setScrollFactor(0).setDepth(710).setInteractive();
       btn.setStrokeStyle(1, 0x334466);
       this.add.text(d.x, d.y, d.label, {
         fontSize: '14px', fontFamily: 'monospace', color: '#6688aa',
-      }).setScrollFactor(0).setDepth(251).setOrigin(0.5);
+      }).setScrollFactor(0).setDepth(711).setOrigin(0.5);
       btn.on('pointerdown', () => { this._dpad[d.key] = true;  btn.setFillStyle(0x3344aa, 0.9); });
       btn.on('pointerup',   () => { this._dpad[d.key] = false; btn.setFillStyle(0x1a1a3a, 0.85); });
       btn.on('pointerout',  () => { this._dpad[d.key] = false; btn.setFillStyle(0x1a1a3a, 0.85); });
     });
-    this.add.circle(cx, cy, 12, 0x2a2a44, 0.7).setScrollFactor(0).setDepth(250);
+    this.add.circle(cx, cy, 12, 0x2a2a44, 0.7).setScrollFactor(0).setDepth(710);
   }
 
   _buildActionBtn(x, y) {
     this._actionBtn = this.add.circle(x, y, 28, 0x6b0000, 0.9)
-      .setScrollFactor(0).setDepth(250).setInteractive();
+      .setScrollFactor(0).setDepth(710).setInteractive();
     this._actionBtn.setStrokeStyle(2, 0xee2222);
     this.add.text(x, y, 'A', {
       fontSize: '18px', fontFamily: 'monospace', fontStyle: 'bold', color: '#ff4444',
-    }).setScrollFactor(0).setDepth(251).setOrigin(0.5);
+    }).setScrollFactor(0).setDepth(711).setOrigin(0.5);
     this._actionBtn.on('pointerdown', () => {
       this._actionBtn.setFillStyle(0xaa0000, 1);
       this._onActionPress();
@@ -418,28 +417,28 @@ export class GameScene extends Phaser.Scene {
     const W = CFG.WIDTH, H = CFG.HEIGHT;
 
     const overlay = this._makeOverlay();
-    const panel = this._addOverlay(this.add.image(W/2, H/2, 'panel_md').setScrollFactor(0).setDepth(350));
+    const panel = this._addOverlay(this.add.image(W/2, H/2, 'panel_md').setScrollFactor(0).setDepth(850));
     this._addOverlay(this.add.text(W/2, H/2 - 80, 'COIN TOSS', {
       fontSize: '24px', fontFamily: 'monospace', color: '#ffd700', stroke:'#000',strokeThickness:3,
-    }).setScrollFactor(0).setDepth(351).setOrigin(0.5));
+    }).setScrollFactor(0).setDepth(851).setOrigin(0.5));
 
     const coin = this._addOverlay(this.add.text(W/2, H/2 - 18, '🪙', { fontSize:'40px' })
-      .setScrollFactor(0).setDepth(351).setOrigin(0.5));
+      .setScrollFactor(0).setDepth(851).setOrigin(0.5));
     this.tweens.add({ targets: coin, scaleX: 0, duration: 400, yoyo: true, repeat: -1 });
 
     this._addOverlay(this.add.text(W/2, H/2 + 28, 'CALL THE TOSS:', {
       fontSize:'13px', fontFamily:'monospace', color:'#cccccc',
-    }).setScrollFactor(0).setDepth(351).setOrigin(0.5));
+    }).setScrollFactor(0).setDepth(851).setOrigin(0.5));
 
-    const headsBtn = this._addOverlay(this.add.image(W/2 - 60, H/2 + 70, 'btn_small').setScrollFactor(0).setDepth(351).setInteractive({ useHandCursor:true }));
+    const headsBtn = this._addOverlay(this.add.image(W/2 - 60, H/2 + 70, 'btn_small').setScrollFactor(0).setDepth(851).setInteractive({ useHandCursor:true }));
     this._addOverlay(this.add.text(W/2 - 60, H/2 + 70, 'HEADS', {
       fontSize:'13px', fontFamily:'monospace', color:'#ffd700',
-    }).setScrollFactor(0).setDepth(352).setOrigin(0.5));
+    }).setScrollFactor(0).setDepth(852).setOrigin(0.5));
 
-    const tailsBtn = this._addOverlay(this.add.image(W/2 + 60, H/2 + 70, 'btn_small').setScrollFactor(0).setDepth(351).setInteractive({ useHandCursor:true }));
+    const tailsBtn = this._addOverlay(this.add.image(W/2 + 60, H/2 + 70, 'btn_small').setScrollFactor(0).setDepth(851).setInteractive({ useHandCursor:true }));
     this._addOverlay(this.add.text(W/2 + 60, H/2 + 70, 'TAILS', {
       fontSize:'13px', fontFamily:'monospace', color:'#c8c8c8',
-    }).setScrollFactor(0).setDepth(352).setOrigin(0.5));
+    }).setScrollFactor(0).setDepth(852).setOrigin(0.5));
 
     const resolve = (call) => {
       const flip = Math.random() < 0.5 ? 'HEADS' : 'TAILS';
@@ -462,22 +461,22 @@ export class GameScene extends Phaser.Scene {
 
   _showReceiveOrKick() {
     const W = CFG.WIDTH, H = CFG.HEIGHT;
-    this._addOverlay(this.add.image(W/2, H/2, 'panel_sm').setScrollFactor(0).setDepth(350));
+    this._addOverlay(this.add.image(W/2, H/2, 'panel_sm').setScrollFactor(0).setDepth(850));
     this._addOverlay(this.add.text(W/2, H/2 - 42, 'YOU WIN THE TOSS', {
       fontSize:'14px', fontFamily:'monospace', color:'#ffd700',
-    }).setScrollFactor(0).setDepth(351).setOrigin(0.5));
+    }).setScrollFactor(0).setDepth(851).setOrigin(0.5));
 
     const recvBtn = this._addOverlay(this.add.image(W/2 - 56, H/2 + 10, 'btn_small')
-      .setScrollFactor(0).setDepth(351).setInteractive({ useHandCursor:true }));
+      .setScrollFactor(0).setDepth(851).setInteractive({ useHandCursor:true }));
     this._addOverlay(this.add.text(W/2 - 56, H/2 + 10, 'RECEIVE', {
       fontSize:'11px', fontFamily:'monospace', color:'#00ff88',
-    }).setScrollFactor(0).setDepth(352).setOrigin(0.5));
+    }).setScrollFactor(0).setDepth(852).setOrigin(0.5));
 
     const kickBtn = this._addOverlay(this.add.image(W/2 + 56, H/2 + 10, 'btn_small')
-      .setScrollFactor(0).setDepth(351).setInteractive({ useHandCursor:true }));
+      .setScrollFactor(0).setDepth(851).setInteractive({ useHandCursor:true }));
     this._addOverlay(this.add.text(W/2 + 56, H/2 + 10, 'KICK', {
       fontSize:'11px', fontFamily:'monospace', color:'#ffcc44',
-    }).setScrollFactor(0).setDepth(352).setOrigin(0.5));
+    }).setScrollFactor(0).setDepth(852).setOrigin(0.5));
 
     recvBtn.on('pointerdown', () => {
       this._clearOverlays();
@@ -843,7 +842,7 @@ export class GameScene extends Phaser.Scene {
       if (d < nearestD) { nearestD = d; nearestS = dS; }
     }
     const doFlash = () => {
-      const flash = this.add.circle(carrierS.x, carrierS.y, 14, 0xffffff, 0.85).setDepth(500);
+      const flash = this.add.circle(carrierS.x, carrierS.y, 14, 0xffffff, 0.85).setDepth(650);
       this.tweens.add({ targets: flash, alpha: 0, scaleX: 3.5, scaleY: 3.5,
         duration: 320, ease: 'Power2',
         onComplete: () => { flash.destroy(); onDone?.(); } });
@@ -886,12 +885,12 @@ export class GameScene extends Phaser.Scene {
     const panelY = H - 150;
 
     const panel = this._addOverlay(this.add.image(W/2, panelY, 'panel_md')
-      .setScrollFactor(0).setDepth(350));
+      .setScrollFactor(0).setDepth(850));
 
     this._addOverlay(this.add.text(W/2, panelY - 68, outcome.narrative || 'Play complete', {
       fontSize: '13px', fontFamily: 'monospace', color: '#ffffff',
       align: 'center', wordWrap: { width: 290 },
-    }).setScrollFactor(0).setDepth(351).setOrigin(0.5));
+    }).setScrollFactor(0).setDepth(851).setOrigin(0.5));
 
     let resultLine = '', resultColor = '#aaddff';
 
@@ -932,7 +931,7 @@ export class GameScene extends Phaser.Scene {
 
     this._addOverlay(this.add.text(W/2, panelY - 36, resultLine, {
       fontSize: '15px', fontFamily: 'monospace', fontStyle: 'bold', color: resultColor,
-    }).setScrollFactor(0).setDepth(351).setOrigin(0.5));
+    }).setScrollFactor(0).setDepth(851).setOrigin(0.5));
 
     // Updated scorebug scores
     this._updateHUD();
@@ -942,18 +941,18 @@ export class GameScene extends Phaser.Scene {
       const rotLine = rotations.slice(0, 3).map(r => `↔ ${r.pos}: ${r.out} → ${r.in}`).join('  ');
       this._addOverlay(this.add.text(W/2, panelY - 8, rotLine, {
         fontSize: '9px', fontFamily: 'monospace', color: '#666688',
-      }).setScrollFactor(0).setDepth(351).setOrigin(0.5));
+      }).setScrollFactor(0).setDepth(851).setOrigin(0.5));
     }
 
     // Auto-advance after linger, or show continue button for player
     const linger = CFG.RESULT_LINGER_MS;
     const continueBtn = this._addOverlay(
       this.add.image(W/2, panelY + 62, 'btn_neutral')
-        .setScrollFactor(0).setDepth(351).setInteractive({ useHandCursor: true })
+        .setScrollFactor(0).setDepth(851).setInteractive({ useHandCursor: true })
     );
     this._addOverlay(this.add.text(W/2, panelY + 62, 'CONTINUE  ▶', {
       fontSize: '13px', fontFamily: 'monospace', color: '#aaddff',
-    }).setScrollFactor(0).setDepth(352).setOrigin(0.5));
+    }).setScrollFactor(0).setDepth(852).setOrigin(0.5));
 
     let advanced = false;
     const doAdvance = () => {
@@ -974,11 +973,11 @@ export class GameScene extends Phaser.Scene {
       this.time.delayedCall(200, () => {
         const epBtn = this._addOverlay(
           this.add.image(W/2, panelY + 96, 'btn_small')
-            .setScrollFactor(0).setDepth(351).setInteractive({ useHandCursor: true })
+            .setScrollFactor(0).setDepth(851).setInteractive({ useHandCursor: true })
         );
         this._addOverlay(this.add.text(W/2, panelY + 96, '+ PAT', {
           fontSize: '11px', fontFamily: 'monospace', color: '#ffd700',
-        }).setScrollFactor(0).setDepth(352).setOrigin(0.5));
+        }).setScrollFactor(0).setDepth(852).setOrigin(0.5));
         epBtn.on('pointerdown', () => {
           gs.scorePoints(gs.possession, 1);
           this._updateHUD();
@@ -1027,36 +1026,40 @@ export class GameScene extends Phaser.Scene {
   _animateHuddle(onDone) {
     const gs     = this.gs;
     const offDir = gs.possession === 0 ? 1 : -1;
-    // Huddle spot: 5 yards behind LOS for offense
-    const huddleX = Phaser.Math.Clamp(
-      yardToX(gs.ballYard) - offDir * 5 * YW, CFG.EZ_W + 20, CFG.FIELD_WORLD_W - CFG.EZ_W - 20);
-    const huddleY = this._fieldYToScreenY(0);
-    const hScale  = screenYToScale(huddleY);
+    const midY   = this._fieldYToScreenY(0);
+    const hScale = screenYToScale(midY);
 
-    // Converge current sprites to cluster
-    for (const s of Object.values(this._sprites)) {
+    // Offense huddles BEHIND LOS; defense huddles AHEAD of LOS
+    const offHuddleX = Phaser.Math.Clamp(
+      yardToX(gs.ballYard) - offDir * 5 * YW, CFG.EZ_W + 20, CFG.FIELD_WORLD_W - CFG.EZ_W - 20);
+    const defHuddleX = Phaser.Math.Clamp(
+      yardToX(gs.ballYard) + offDir * 7 * YW, CFG.EZ_W + 20, CFG.FIELD_WORLD_W - CFG.EZ_W - 20);
+
+    for (const [key, s] of Object.entries(this._sprites)) {
       if (!s?.active) continue;
+      const isOff = key.startsWith('off_');
+      const hx = isOff ? offHuddleX : defHuddleX;
       s._label?.setAlpha(0);
       s._fatDot?.setAlpha(0);
       this.tweens.add({ targets: s,
-        x: huddleX + (Math.random()-0.5)*26, y: huddleY + (Math.random()-0.5)*18,
+        x: hx + (Math.random()-0.5)*26, y: midY + (Math.random()-0.5)*18,
         scale: hScale, duration: 440, ease: 'Power2.easeIn' });
     }
-    if (this._ball) this.tweens.add({ targets: this._ball, x: huddleX, y: huddleY, duration: 440 });
+    if (this._ball) this.tweens.add({ targets: this._ball, x: offHuddleX, y: midY, duration: 440 });
 
     this._showToast('HUDDLE', 680);
 
-    // Break huddle → spawn formation → animate out to positions
     this.time.delayedCall(760, () => {
       this._showToast('BREAK!', 380);
       this._clearSprites();
-      this._setUpFormation(); // places sprites at correct formation spots
+      this._setUpFormation();
 
-      // Teleport spawned sprites to huddle cluster, then tween to their spots
-      for (const s of Object.values(this._sprites)) {
+      for (const [key, s] of Object.entries(this._sprites)) {
         if (!s?.active) continue;
+        const isOff = key.startsWith('off_');
+        const hx = isOff ? offHuddleX : defHuddleX;
         const destX = s._baseX, destY = s._baseY;
-        s.setPosition(huddleX + (Math.random()-0.5)*22, huddleY + (Math.random()-0.5)*14);
+        s.setPosition(hx + (Math.random()-0.5)*22, midY + (Math.random()-0.5)*14);
         s._label?.setAlpha(0);
         s._fatDot?.setAlpha(0);
         this.tweens.add({ targets: s, x: destX, y: destY, scale: screenYToScale(destY),
@@ -1100,7 +1103,7 @@ export class GameScene extends Phaser.Scene {
     const t = this.add.text(W/2, 100, msg, {
       fontSize: '13px', fontFamily: 'monospace', color: '#ffffff',
       stroke: '#000000', strokeThickness: 3, align: 'center',
-    }).setScrollFactor(0).setDepth(400).setOrigin(0.5).setAlpha(0);
+    }).setScrollFactor(0).setDepth(900).setOrigin(0.5).setAlpha(0);
     this.tweens.add({ targets: t, alpha: 1, duration: 180 });
     this.time.delayedCall(duration - 250, () => {
       this.tweens.add({ targets: t, alpha: 0, duration: 220,

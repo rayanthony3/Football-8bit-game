@@ -112,15 +112,8 @@ export function createFieldTexture(scene, teamColors = {}) {
   g.fillStyle(0x1e1e28);
   g.fillRect(0, 0, fw, FAR_Y);
 
-  // Upper stands — far crowd (home fans dominate)
-  _drawCrowd(g, fw, FAR_Y - 52, 52, homeP, homeS, 0.72);
-
-  // Lower stands — near crowd (mix of home + away)
-  _drawCrowd(g, fw, NEAR_Y + 2, 50, awayP, awayS, 0.45);
-
-  // Bottom bar
-  g.fillStyle(0x1e1e28);
-  g.fillRect(0, NEAR_Y + 52, fw, fh - NEAR_Y - 52);
+  // Upper stands — far crowd fills entire concrete strip above field
+  _drawCrowd(g, fw, 2, FAR_Y - 4, homeP, homeS, 0.72);
 
   // Alternating green stripes (10-yard sections)
   for (let s = 0; s < 10; s++) {
