@@ -1,5 +1,5 @@
 import { CFG } from '../config.js';
-import { getOverall } from '../data/teams.js';
+import { getOverall, getStars, starsStr } from '../data/teams.js';
 
 export class GameOverScene extends Phaser.Scene {
   constructor() { super({ key: 'GameOverScene' }); }
@@ -102,7 +102,7 @@ export class GameOverScene extends Phaser.Scene {
     // MVP
     const allP = [...tA.roster, ...tB.roster];
     const mvp = allP.reduce((best, p) => getOverall(p) > getOverall(best) ? p : best, allP[0]);
-    this.add.text(WIDTH/2, HEIGHT - 120, `🏆 MVP: ${mvp.name}  (${mvp.pos})  OVR ${getOverall(mvp)}`, {
+    this.add.text(WIDTH/2, HEIGHT - 120, `🏆 MVP: ${mvp.name}  (${mvp.pos})  ${starsStr(getStars(getOverall(mvp)))}`, {
       fontSize: '12px', fontFamily: 'monospace', color: '#ffd700',
     }).setOrigin(0.5);
 

@@ -2,13 +2,13 @@ import { CFG } from '../config.js';
 import { createTeams } from '../data/teams.js';
 
 export class GameState {
-  constructor() {
+  constructor(teamA, teamB) {
+    this._initTeams = (teamA && teamB) ? [teamA, teamB] : null;
     this.reset();
   }
 
   reset() {
-    const [teamA, teamB] = createTeams();
-    this.teams = [teamA, teamB];
+    this.teams = this._initTeams || createTeams();
     this.playerTeamIdx = 0;
     this.playerPos = 'QB';
     this.gameMode = 'COACH';

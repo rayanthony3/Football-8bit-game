@@ -1,266 +1,214 @@
-import { CFG } from '../config.js';
+// ─── Star rating helpers ────────────────────────────────────────────────────
+export function getStars(overall) {
+  if (overall >= 9) return 5;
+  if (overall >= 7) return 4;
+  if (overall >= 5) return 3;
+  if (overall >= 3) return 2;
+  return 1;
+}
+export function starsStr(n) { return '★'.repeat(n) + '☆'.repeat(5 - n); }
 
-function rng(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+export function getTeamStars(team) {
+  const avgStars = (positions) => {
+    const vals = positions.map(pos => {
+      const p = team.roster.filter(r => r.pos === pos).sort((a,b) => getOverall(b)-getOverall(a))[0];
+      return p ? getStars(getOverall(p)) : 0;
+    }).filter(v => v > 0);
+    return vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+  };
+  const off = avgStars(['QB','RB','WR','TE','LT','LG','C','RG','RT']);
+  const def = avgStars(['DE','DT','MLB','OLB','CB','FS','SS']);
+  const st  = avgStars(['K','P']);
+  return {
+    off: Math.round(off * 10) / 10,
+    def: Math.round(def * 10) / 10,
+    st:  Math.round(st  * 10) / 10,
+    overall: Math.min(5, Math.round(off * 0.4 + def * 0.4 + st * 0.2)),
+  };
 }
 
-function statBlock(base, ...keys) {
-  const stats = {};
-  for (const k of keys) stats[k] = Math.min(10, Math.max(1, base + rng(-2, 2)));
-  return stats;
+// ─── Name pools ─────────────────────────────────────────────────────────────
+const INIT = 'ABCDEFGHJKLMNPQRSTVWZ';
+const QB_L  = ['Rivers','Wilson','Mahomes','Young','Brady','Allen','Herbert','Lawrence','Fields','Hurts','Purdy','Love','Stroud','Murray','Carr','Flacco','Tua','Goff','Cousins','Stafford'];
+const RB_L  = ['Henry','Hill','Cook','Swift','Hall','Jones','Pierce','Carter','Mixon','Barkley','Kamara','Taylor','Chubb','Hunt','Gordon','Jacobs','Walker','White','Sanders','McCaffrey'];
+const WR_L  = ['Adams','Diggs','Cooper','Moore','Lamb','Chase','Evans','Brown','Lockett','Metcalf','Smith','Green','Jefferson','Hill','Kupp','Thielen','Ridley','Davante','Cooks','Waddle'];
+const TE_L  = ['Kelce','Pitts','Andrews','Goedert','Ertz','Henry','Engram','Njoku','Hockenson','Kittle','Smith','Gesicki','Otton','Dulcich','Kmet'];
+const OL_L  = ['Moses','Brown','Trent','Vea','Lamp','Turner','Davis','Ford','Bell','Walsh','Cole','Nash','Little','Miller','Penn','Williams','Thomas','Collins','Thuney','Linsley'];
+const DL_L  = ['Donald','Watt','Bosa','Jones','Hicks','Allen','Miller','Sweat','Maxx','Crosby','Hendrickson','Simmons','Lawrence','Burns','Hutchinson'];
+const LB_L  = ['Wagner','Smith','White','Hightower','Davis','Leonard','Parsons','Campbell','Walker','Lloyd','Evans','Vander','Byard','Queen','Darius'];
+const DB_L  = ['Ramsey','Rhodes','Ward','Baker','Grant','Jackson','Mathieu','Adams','Key','Neal','Harris','Diggs','Williams','Jenkins','Peterson'];
+const K_L   = ['Tucker','Gay','Boswell','Lutz','Butker','McLaughlin','York','Bass','Evan','Prater'];
+const P_L   = ['Hekker','Dixon','Wadman','Scott','Fox','Thomas','Bojorquez','Cooke','Cole','Roy'];
+
+function pickName(pool, used) {
+  for (let i = 0; i < 150; i++) {
+    const init = INIT[Math.floor(Math.random() * INIT.length)];
+    const last = pool[Math.floor(Math.random() * pool.length)];
+    const n = `${init}. ${last}`;
+    if (!used.has(n)) { used.add(n); return n; }
+  }
+  return `${INIT[Math.floor(Math.random()*INIT.length)]}. Player`;
 }
 
-const QB_NAMES = [
-  'A. Rivers','B. Kelce','C. Wilson','D. Mahomes','E. Young',
-  'F. Brady','G. Allen','H. Herbert',
-];
-const RB_NAMES = [
-  'A. Henry','B. Hill','C. Cook','D. Swift','E. Hall',
-  'F. Jones','G. Pierce','H. Carter','I. Mixon','J. Barkley',
-];
-const WR_NAMES = [
-  'A. Adams','B. Diggs','C. Cooper','D. Moore','E. Lamb',
-  'F. Chase','G. Evans','H. Brown','I. Lockett','J. Metcalf',
-  'K. Smith','L. Green',
-];
-const TE_NAMES  = ['A. Kelce','B. Pitts','C. Andrews','D. Goedert','E. Ertz','F. Henry'];
-const OL_NAMES  = [
-  'A. Moses','B. Brown','C. Trent','D. Vea','E. Lamp',
-  'F. Gage','G. Turner','H. Davis','I. Ford','J. Bell',
-  'K. Walsh','L. Cole','M. Petit','N. Nash',
-];
-const DL_NAMES  = [
-  'A. Donald','B. Watt','C. Bosa','D. Jones','E. Hicks',
-  'F. Allen','G. Miller','H. Sweat',
-];
-const LB_NAMES  = [
-  'A. Wagner','B. Smith','C. White','D. Hightower','E. Davis',
-  'F. Leonard','G. Parsons','H. Campbell','I. Walker','J. Lloyd',
-];
-const DB_NAMES  = [
-  'A. Ramsey','B. Rhodes','C. Ward','D. Baker','E. Grant',
-  'F. Jackson','G. Diggs','H. Mathieu','I. Adams','J. Byard',
-  'K. Key','L. Neal','M. Hill','N. Harris',
-];
-const K_NAMES   = ['A. Tucker','B. Gay'];
-const P_NAMES   = ['A. Heckert','B. Dixon'];
+// ─── Player factory functions ────────────────────────────────────────────────
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const rng   = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+const stat  = (tier, lo, hi) => clamp(rng(tier + lo, tier + hi), 1, 10);
 
 function makeQB(name, tier) {
-  const b = tier;
-  return {
-    pos: 'QB', name,
-    stats: { spd: rng(b-1,b+1), str: rng(4,7), awr: rng(b,b+2), agi: rng(b-1,b+1),
-             stm: rng(b-1,b+2), thr: rng(b,b+2), acc: rng(b-1,b+2),
-             ctc:4, rtr:3, blk:2, tck:2, cvr:2, kpw:3, kac:3 },
-    fatigue: 0, active: true,
-  };
+  const b = clamp(tier, 1, 10);
+  return { pos:'QB', name, stats:{ spd:stat(b,-1,1), str:rng(4,7), awr:stat(b,0,2), agi:stat(b,-1,1), stm:stat(b,-1,2), thr:stat(b,0,2), acc:stat(b,-1,2), ctc:4,rtr:3,blk:2,tck:2,cvr:2,kpw:3,kac:3 }, fatigue:0, active:true };
 }
 function makeRB(name, tier) {
-  const b = tier;
-  return {
-    pos: 'RB', name,
-    stats: { spd: rng(b,b+2), str: rng(b-1,b+1), awr: rng(b-1,b+1), agi: rng(b,b+2),
-             stm: rng(b-1,b+2), thr:3, acc:3, ctc: rng(b-1,b+1),
-             rtr:4, blk: rng(b-2,b), tck:3, cvr:2, kpw:2, kac:2 },
-    fatigue: 0, active: true,
-  };
+  const b = clamp(tier, 1, 10);
+  return { pos:'RB', name, stats:{ spd:stat(b,0,2), str:stat(b,-1,1), awr:stat(b,-1,1), agi:stat(b,0,2), stm:stat(b,-1,2), thr:3,acc:3, ctc:stat(b,-1,1), rtr:4, blk:stat(b,-2,0), tck:3,cvr:2,kpw:2,kac:2 }, fatigue:0, active:true };
 }
 function makeFB(name, tier) {
-  const b = tier;
-  return {
-    pos: 'FB', name,
-    stats: { spd: rng(b-2,b), str: rng(b,b+2), awr: rng(b-1,b+1), agi: rng(b-2,b),
-             stm: rng(b,b+2), thr:2, acc:2, ctc: rng(b-2,b),
-             rtr:3, blk: rng(b,b+2), tck: rng(b-1,b+1), cvr:2, kpw:2, kac:2 },
-    fatigue: 0, active: true,
-  };
+  const b = clamp(tier, 1, 10);
+  return { pos:'FB', name, stats:{ spd:stat(b,-2,0), str:stat(b,0,2), awr:stat(b,-1,1), agi:stat(b,-2,0), stm:stat(b,0,2), thr:2,acc:2, ctc:stat(b,-2,0), rtr:3, blk:stat(b,0,2), tck:stat(b,-1,1), cvr:2,kpw:2,kac:2 }, fatigue:0, active:true };
 }
 function makeWR(name, tier) {
-  const b = tier;
-  return {
-    pos: 'WR', name,
-    stats: { spd: rng(b,b+2), str: rng(4,6), awr: rng(b-1,b+1), agi: rng(b,b+2),
-             stm: rng(b-1,b+1), thr:2, acc:2, ctc: rng(b,b+2),
-             rtr: rng(b,b+2), blk: rng(3,5), tck:2, cvr:3, kpw:2, kac:2 },
-    fatigue: 0, active: true,
-  };
+  const b = clamp(tier, 1, 10);
+  return { pos:'WR', name, stats:{ spd:stat(b,0,2), str:rng(4,6), awr:stat(b,-1,1), agi:stat(b,0,2), stm:stat(b,-1,1), thr:2,acc:2, ctc:stat(b,0,2), rtr:stat(b,0,2), blk:rng(3,5), tck:2,cvr:3,kpw:2,kac:2 }, fatigue:0, active:true };
 }
 function makeTE(name, tier) {
-  const b = tier;
-  return {
-    pos: 'TE', name,
-    stats: { spd: rng(b-1,b+1), str: rng(b,b+2), awr: rng(b-1,b+1), agi: rng(b-1,b+1),
-             stm: rng(b-1,b+1), thr:2, acc:2, ctc: rng(b,b+2),
-             rtr: rng(b-1,b+1), blk: rng(b,b+2), tck:3, cvr:3, kpw:2, kac:2 },
-    fatigue: 0, active: true,
-  };
+  const b = clamp(tier, 1, 10);
+  return { pos:'TE', name, stats:{ spd:stat(b,-1,1), str:stat(b,0,2), awr:stat(b,-1,1), agi:stat(b,-1,1), stm:stat(b,-1,1), thr:2,acc:2, ctc:stat(b,0,2), rtr:stat(b,-1,1), blk:stat(b,0,2), tck:3,cvr:3,kpw:2,kac:2 }, fatigue:0, active:true };
 }
 function makeOL(name, pos, tier) {
-  const b = tier;
-  return {
-    pos, name,
-    stats: { spd: rng(4,6), str: rng(b,b+2), awr: rng(b-1,b+1), agi: rng(4,6),
-             stm: rng(b-1,b+1), thr:1, acc:1, ctc:2,
-             rtr:2, blk: rng(b,b+2), tck: rng(b-2,b), cvr:1, kpw:2, kac:2 },
-    fatigue: 0, active: true,
-  };
+  const b = clamp(tier, 1, 10);
+  return { pos, name, stats:{ spd:rng(4,6), str:stat(b,0,2), awr:stat(b,-1,1), agi:rng(4,6), stm:stat(b,-1,1), thr:1,acc:1,ctc:2,rtr:2, blk:stat(b,0,2), tck:stat(b,-2,0), cvr:1,kpw:2,kac:2 }, fatigue:0, active:true };
 }
 function makeDE(name, tier) {
-  const b = tier;
-  return {
-    pos: 'DE', name,
-    stats: { spd: rng(b-1,b+1), str: rng(b,b+2), awr: rng(b-1,b+1), agi: rng(b-1,b+1),
-             stm: rng(b-1,b+1), thr:1, acc:1, ctc:2,
-             rtr:2, blk: rng(b-1,b+1), tck: rng(b,b+2), cvr:3, kpw:2, kac:2 },
-    fatigue: 0, active: true,
-  };
+  const b = clamp(tier, 1, 10);
+  return { pos:'DE', name, stats:{ spd:stat(b,-1,1), str:stat(b,0,2), awr:stat(b,-1,1), agi:stat(b,-1,1), stm:stat(b,-1,1), thr:1,acc:1,ctc:2,rtr:2, blk:stat(b,-1,1), tck:stat(b,0,2), cvr:3,kpw:2,kac:2 }, fatigue:0, active:true };
 }
 function makeDT(name, tier) {
-  const b = tier;
-  return {
-    pos: 'DT', name,
-    stats: { spd: rng(4,6), str: rng(b,b+2), awr: rng(b-1,b+1), agi: rng(4,6),
-             stm: rng(b-1,b+1), thr:1, acc:1, ctc:2,
-             rtr:2, blk: rng(b-1,b+1), tck: rng(b,b+2), cvr:2, kpw:2, kac:2 },
-    fatigue: 0, active: true,
-  };
+  const b = clamp(tier, 1, 10);
+  return { pos:'DT', name, stats:{ spd:rng(4,6), str:stat(b,0,2), awr:stat(b,-1,1), agi:rng(4,6), stm:stat(b,-1,1), thr:1,acc:1,ctc:2,rtr:2, blk:stat(b,-1,1), tck:stat(b,0,2), cvr:2,kpw:2,kac:2 }, fatigue:0, active:true };
 }
 function makeLB(name, pos, tier) {
-  const b = tier;
-  return {
-    pos, name,
-    stats: { spd: rng(b-1,b+1), str: rng(b-1,b+1), awr: rng(b,b+2), agi: rng(b-1,b+1),
-             stm: rng(b-1,b+1), thr:1, acc:1, ctc:2,
-             rtr:2, blk: rng(b-2,b), tck: rng(b,b+2), cvr: rng(b-1,b+1), kpw:2, kac:2 },
-    fatigue: 0, active: true,
-  };
+  const b = clamp(tier, 1, 10);
+  return { pos, name, stats:{ spd:stat(b,-1,1), str:stat(b,-1,1), awr:stat(b,0,2), agi:stat(b,-1,1), stm:stat(b,-1,1), thr:1,acc:1,ctc:2,rtr:2, blk:stat(b,-2,0), tck:stat(b,0,2), cvr:stat(b,-1,1), kpw:2,kac:2 }, fatigue:0, active:true };
 }
 function makeCB(name, tier) {
-  const b = tier;
-  return {
-    pos: 'CB', name,
-    stats: { spd: rng(b,b+2), str: rng(4,6), awr: rng(b,b+2), agi: rng(b,b+2),
-             stm: rng(b-1,b+1), thr:1, acc:1, ctc:3,
-             rtr:2, blk: rng(3,5), tck: rng(b-1,b+1), cvr: rng(b,b+2), kpw:2, kac:2 },
-    fatigue: 0, active: true,
-  };
+  const b = clamp(tier, 1, 10);
+  return { pos:'CB', name, stats:{ spd:stat(b,0,2), str:rng(4,6), awr:stat(b,0,2), agi:stat(b,0,2), stm:stat(b,-1,1), thr:1,acc:1,ctc:3,rtr:2, blk:rng(3,5), tck:stat(b,-1,1), cvr:stat(b,0,2), kpw:2,kac:2 }, fatigue:0, active:true };
 }
 function makeSafety(name, pos, tier) {
-  const b = tier;
-  return {
-    pos, name,
-    stats: { spd: rng(b-1,b+1), str: rng(b-1,b+1), awr: rng(b,b+2), agi: rng(b-1,b+1),
-             stm: rng(b-1,b+1), thr:1, acc:1, ctc:3,
-             rtr:2, blk: rng(3,5), tck: rng(b,b+2), cvr: rng(b,b+2), kpw:2, kac:2 },
-    fatigue: 0, active: true,
-  };
+  const b = clamp(tier, 1, 10);
+  return { pos, name, stats:{ spd:stat(b,-1,1), str:stat(b,-1,1), awr:stat(b,0,2), agi:stat(b,-1,1), stm:stat(b,-1,1), thr:1,acc:1,ctc:3,rtr:2, blk:rng(3,5), tck:stat(b,0,2), cvr:stat(b,0,2), kpw:2,kac:2 }, fatigue:0, active:true };
 }
 function makeK(name, tier) {
-  const b = tier;
-  return {
-    pos: 'K', name,
-    stats: { spd:5, str:5, awr: rng(b-1,b+1), agi:5,
-             stm:8, thr:3, acc:3, ctc:2,
-             rtr:2, blk:1, tck:1, cvr:1, kpw: rng(b,b+2), kac: rng(b,b+2) },
-    fatigue: 0, active: true,
-  };
+  const b = clamp(tier, 1, 10);
+  return { pos:'K', name, stats:{ spd:5,str:5, awr:stat(b,-1,1), agi:5, stm:8, thr:3,acc:3,ctc:2,rtr:2,blk:1,tck:1,cvr:1, kpw:stat(b,0,2), kac:stat(b,0,2) }, fatigue:0, active:true };
 }
 function makeP(name, tier) {
-  const b = tier;
-  return {
-    pos: 'P', name,
-    stats: { spd:5, str:5, awr: rng(b-1,b+1), agi:5,
-             stm:8, thr: rng(b,b+1), acc: rng(b,b+1), ctc:2,
-             rtr:2, blk:1, tck:1, cvr:1, kpw: rng(b,b+2), kac: rng(b,b+2) },
-    fatigue: 0, active: true,
-  };
+  const b = clamp(tier, 1, 10);
+  return { pos:'P', name, stats:{ spd:5,str:5, awr:stat(b,-1,1), agi:5, stm:8, thr:stat(b,0,1), acc:stat(b,0,1), ctc:2,rtr:2,blk:1,tck:1,cvr:1, kpw:stat(b,0,2), kac:stat(b,0,2) }, fatigue:0, active:true };
 }
 
-function buildRoster(nameArrays, tiers) {
-  const roster = [];
+// ─── Roster builder (random names, tier-based stats) ─────────────────────────
+// All starter tiers are clamped to minimum 5 to guarantee 3-star starters
+function buildRoster(t) {
+  const used = new Set();
+  const p = (pool) => pickName(pool, used);
+  const MIN = 5; // starter minimum tier
+  const { os, ob, ot, ds, db, dt, ss, sb } = {
+    os: Math.max(MIN, t.offStart), ob: Math.max(MIN-1, t.offBack), ot: Math.max(MIN-2, t.offThird),
+    ds: Math.max(MIN, t.defStart), db: Math.max(MIN-1, t.defBack), dt: Math.max(MIN-2, t.defThird),
+    ss: Math.max(MIN, t.stStart),  sb: Math.max(MIN-1, t.stBack),
+  };
 
-  // QB x3
-  roster.push(makeQB(nameArrays.QB[0], tiers[0]), makeQB(nameArrays.QB[1], tiers[1]), makeQB(nameArrays.QB[2], tiers[2]));
-  // RB x4
-  for (let i=0;i<4;i++) roster.push(makeRB(nameArrays.RB[i], tiers[i<2?0:1]));
-  // FB x1
-  roster.push(makeFB(nameArrays.FB[0], tiers[1]));
-  // WR x6
-  for (let i=0;i<6;i++) roster.push(makeWR(nameArrays.WR[i], tiers[i<3?0:1]));
-  // TE x3
-  for (let i=0;i<3;i++) roster.push(makeTE(nameArrays.TE[i], tiers[i<2?0:1]));
-  // OL x8 (LT,LG,C,RG,RT x starters + 3 backups)
-  roster.push(makeOL(nameArrays.OL[0],'LT',tiers[0]), makeOL(nameArrays.OL[1],'LG',tiers[0]),
-              makeOL(nameArrays.OL[2],'C', tiers[0]), makeOL(nameArrays.OL[3],'RG',tiers[0]),
-              makeOL(nameArrays.OL[4],'RT',tiers[0]));
-  roster.push(makeOL(nameArrays.OL[5],'LT',tiers[1]), makeOL(nameArrays.OL[6],'LG',tiers[1]),
-              makeOL(nameArrays.OL[7],'C', tiers[1]));
-  // DE x4
-  for (let i=0;i<4;i++) roster.push(makeDE(nameArrays.DE[i], tiers[i<2?0:1]));
-  // DT x3
-  for (let i=0;i<3;i++) roster.push(makeDT(nameArrays.DT[i], tiers[i===0?0:1]));
-  // MLB x2
-  roster.push(makeLB(nameArrays.LB[0],'MLB',tiers[0]), makeLB(nameArrays.LB[1],'MLB',tiers[1]));
-  // OLB x4
-  for (let i=0;i<4;i++) roster.push(makeLB(nameArrays.LB[i+2],'OLB',tiers[i<2?0:1]));
-  // CB x6
-  for (let i=0;i<6;i++) roster.push(makeCB(nameArrays.CB[i], tiers[i<3?0:1]));
-  // FS x2
-  roster.push(makeSafety(nameArrays.S[0],'FS',tiers[0]), makeSafety(nameArrays.S[1],'FS',tiers[1]));
-  // SS x2
-  roster.push(makeSafety(nameArrays.S[2],'SS',tiers[0]), makeSafety(nameArrays.S[3],'SS',tiers[1]));
-  // K x1
-  roster.push(makeK(nameArrays.K[0], tiers[0]));
-  // P x1
-  roster.push(makeP(nameArrays.P[0], tiers[0]));
+  return [
+    // QB x3
+    makeQB(p(QB_L),os), makeQB(p(QB_L),ob), makeQB(p(QB_L),ot),
+    // RB x4
+    makeRB(p(RB_L),os), makeRB(p(RB_L),os), makeRB(p(RB_L),ob), makeRB(p(RB_L),ot),
+    // FB x1
+    makeFB(p(OL_L),ob),
+    // WR x6
+    makeWR(p(WR_L),os), makeWR(p(WR_L),os), makeWR(p(WR_L),os),
+    makeWR(p(WR_L),ob), makeWR(p(WR_L),ob), makeWR(p(WR_L),ot),
+    // TE x3
+    makeTE(p(TE_L),os), makeTE(p(TE_L),ob), makeTE(p(TE_L),ot),
+    // OL x8
+    makeOL(p(OL_L),'LT',os), makeOL(p(OL_L),'LG',os), makeOL(p(OL_L),'C',os),
+    makeOL(p(OL_L),'RG',os), makeOL(p(OL_L),'RT',os),
+    makeOL(p(OL_L),'LT',ob), makeOL(p(OL_L),'LG',ob), makeOL(p(OL_L),'C',ob),
+    // DE x4
+    makeDE(p(DL_L),ds), makeDE(p(DL_L),ds), makeDE(p(DL_L),db), makeDE(p(DL_L),dt),
+    // DT x3
+    makeDT(p(DL_L),ds), makeDT(p(DL_L),db), makeDT(p(DL_L),dt),
+    // MLB x2
+    makeLB(p(LB_L),'MLB',ds), makeLB(p(LB_L),'MLB',db),
+    // OLB x4
+    makeLB(p(LB_L),'OLB',ds), makeLB(p(LB_L),'OLB',ds),
+    makeLB(p(LB_L),'OLB',db), makeLB(p(LB_L),'OLB',dt),
+    // CB x6
+    makeCB(p(DB_L),ds), makeCB(p(DB_L),ds), makeCB(p(DB_L),ds),
+    makeCB(p(DB_L),db), makeCB(p(DB_L),db), makeCB(p(DB_L),dt),
+    // FS x2
+    makeSafety(p(DB_L),'FS',ds), makeSafety(p(DB_L),'FS',db),
+    // SS x2
+    makeSafety(p(DB_L),'SS',ds), makeSafety(p(DB_L),'SS',db),
+    // K + P
+    makeK(p(K_L),ss), makeP(p(P_L),ss),
+  ];
+}
 
-  return roster;
+// ─── 10 Team definitions ─────────────────────────────────────────────────────
+const TEAM_DEFS = [
+  // id 0  ★★★★★ Elite balanced
+  { name:'Ironclad FC',    city:'IRON CITY',     abbr:'IFC', primary:0x1a3a8a, secondary:0xffd700, textColor:'#ffd700',
+    tiers:{ offStart:9, offBack:7, offThird:5, defStart:8, defBack:7, defThird:5, stStart:7, stBack:5 } },
+  // id 1  ★★★★★ Elite offense
+  { name:'Thunder Hawks',  city:'THUNDER RIDGE', abbr:'THK', primary:0x4b0082, secondary:0xff6600, textColor:'#ff6600',
+    tiers:{ offStart:9, offBack:8, offThird:5, defStart:7, defBack:6, defThird:5, stStart:6, stBack:5 } },
+  // id 2  ★★★★ Strong defense
+  { name:'Red Storm',      city:'STORM BAY',     abbr:'STM', primary:0x8b0000, secondary:0xc8c8c8, textColor:'#c8c8c8',
+    tiers:{ offStart:7, offBack:6, offThird:5, defStart:8, defBack:7, defThird:5, stStart:7, stBack:5 } },
+  // id 3  ★★★★ Balanced good
+  { name:'Bay Sharks',     city:'BAY HARBOR',    abbr:'BSH', primary:0x006666, secondary:0xeeffff, textColor:'#eeffff',
+    tiers:{ offStart:7, offBack:6, offThird:5, defStart:7, defBack:6, defThird:5, stStart:6, stBack:5 } },
+  // id 4  ★★★ Run-focused
+  { name:'Golden Wolves',  city:'GOLD VALLEY',   abbr:'GWV', primary:0x997700, secondary:0x228b22, textColor:'#ccaa00',
+    tiers:{ offStart:7, offBack:5, offThird:5, defStart:6, defBack:5, defThird:5, stStart:7, stBack:5 } },
+  // id 5  ★★★ Defense-focused
+  { name:'Steel Titans',   city:'STEEL CITY',    abbr:'STL', primary:0x444444, secondary:0xaaaaaa, textColor:'#cccccc',
+    tiers:{ offStart:6, offBack:5, offThird:5, defStart:7, defBack:6, defThird:5, stStart:5, stBack:5 } },
+  // id 6  ★★★ Pass-focused
+  { name:'Desert Vipers',  city:'DESERT PEAK',   abbr:'DVP', primary:0xcc4400, secondary:0x1a1a1a, textColor:'#ff8844',
+    tiers:{ offStart:7, offBack:6, offThird:5, defStart:6, defBack:5, defThird:5, stStart:6, stBack:5 } },
+  // id 7  ★★ Average
+  { name:'River Kings',    city:'RIVER BEND',    abbr:'RVK', primary:0x660000, secondary:0xf5deb3, textColor:'#f5deb3',
+    tiers:{ offStart:6, offBack:5, offThird:5, defStart:6, defBack:5, defThird:5, stStart:5, stBack:5 } },
+  // id 8  ★★ Defense-leaning
+  { name:'Frost Giants',   city:'FROST FALLS',   abbr:'FRG', primary:0x336688, secondary:0xddeeff, textColor:'#ddeeff',
+    tiers:{ offStart:5, offBack:5, offThird:5, defStart:6, defBack:5, defThird:5, stStart:6, stBack:5 } },
+  // id 9  ★  Rebuilding
+  { name:'Iron Eagles',    city:'EAGLE POINT',   abbr:'IEG', primary:0x1a1a3a, secondary:0x8b7355, textColor:'#aa9966',
+    tiers:{ offStart:5, offBack:5, offThird:5, defStart:5, defBack:5, defThird:5, stStart:5, stBack:5 } },
+];
+
+// ─── Public API ──────────────────────────────────────────────────────────────
+export function createAllTeams() {
+  return TEAM_DEFS.map(def => ({
+    name:      def.name,
+    city:      def.city,
+    abbr:      def.abbr,
+    primary:   def.primary,
+    secondary: def.secondary,
+    textColor: def.textColor,
+    score:        0,
+    timeoutsLeft: 3,
+    roster: buildRoster(def.tiers),
+  }));
 }
 
 export function createTeams() {
-  const teamA = {
-    ...CFG.TEAM_A,
-    score: 0,
-    timeoutsLeft: 3,
-    roster: buildRoster({
-      QB:  QB_NAMES.slice(0,3),
-      RB:  RB_NAMES.slice(0,4),
-      FB:  ['A. Fullerton'],
-      WR:  WR_NAMES.slice(0,6),
-      TE:  TE_NAMES.slice(0,3),
-      OL:  OL_NAMES.slice(0,8),
-      DE:  DL_NAMES.slice(0,4),
-      DT:  DL_NAMES.slice(4,7),
-      LB:  LB_NAMES.slice(0,6),
-      CB:  DB_NAMES.slice(0,6),
-      S:   DB_NAMES.slice(6,10),
-      K:   [K_NAMES[0]],
-      P:   [P_NAMES[0]],
-    }, [8,6,4]),
-  };
-
-  const teamB = {
-    ...CFG.TEAM_B,
-    score: 0,
-    timeoutsLeft: 3,
-    roster: buildRoster({
-      QB:  QB_NAMES.slice(3,6),
-      RB:  RB_NAMES.slice(4,8),
-      FB:  ['B. Fuller'],
-      WR:  WR_NAMES.slice(6,12),
-      TE:  TE_NAMES.slice(3,6),
-      OL:  OL_NAMES.slice(7,15),
-      DE:  DL_NAMES.slice(0,4).map(n => n.replace('A.','X.').replace('B.','Y.')),
-      DT:  DL_NAMES.slice(4,7).map(n => n.replace('A.','X.').replace('B.','Y.')),
-      LB:  LB_NAMES.slice(4,10),
-      CB:  DB_NAMES.slice(0,6).map(n => n.replace('A.','P.').replace('B.','Q.')),
-      S:   DB_NAMES.slice(10,14),
-      K:   [K_NAMES[1]],
-      P:   [P_NAMES[1]],
-    }, [7,5,3]),
-  };
-
-  return [teamA, teamB];
+  const all = createAllTeams();
+  return [all[0], all[1]];
 }
 
 export function getRosterByPosition(roster, pos) {
@@ -268,15 +216,11 @@ export function getRosterByPosition(roster, pos) {
 }
 
 export function getStarters(roster) {
+  const counts = { QB:1,RB:1,FB:1,WR:2,TE:1,LT:1,LG:1,C:1,RG:1,RT:1,DE:2,DT:2,MLB:1,OLB:2,CB:2,FS:1,SS:1,K:1,P:1 };
   const starters = {};
-  const positions = ['QB','RB','FB','WR','TE','LT','LG','C','RG','RT',
-                     'DE','DT','MLB','OLB','CB','FS','SS','K','P'];
-  const counts = { QB:1, RB:1, FB:1, WR:2, TE:1, LT:1, LG:1, C:1, RG:1, RT:1,
-                   DE:2, DT:2, MLB:1, OLB:2, CB:2, FS:1, SS:1, K:1, P:1 };
-  for (const pos of positions) {
-    const group = roster.filter(p => p.pos === pos && p.active)
-      .sort((a,b) => avgStat(b.stats) - avgStat(a.stats));
-    starters[pos] = group.slice(0, counts[pos] || 1);
+  for (const [pos, n] of Object.entries(counts)) {
+    starters[pos] = roster.filter(p => p.pos === pos && p.active)
+      .sort((a,b) => avgStat(b.stats) - avgStat(a.stats)).slice(0, n);
   }
   return starters;
 }
@@ -289,33 +233,20 @@ function avgStat(stats) {
 export function getOverall(player) {
   const s = player.stats;
   const posWeights = {
-    QB:  ['thr','acc','awr','spd','agi'],
-    RB:  ['spd','agi','str','ctc','stm'],
-    FB:  ['str','blk','stm','spd','agi'],
-    WR:  ['spd','ctc','rtr','agi','awr'],
-    TE:  ['ctc','blk','str','spd','awr'],
-    LT:  ['blk','str','awr','stm','agi'],
-    LG:  ['blk','str','awr','stm','agi'],
-    C:   ['blk','str','awr','stm','agi'],
-    RG:  ['blk','str','awr','stm','agi'],
-    RT:  ['blk','str','awr','stm','agi'],
-    DE:  ['tck','str','spd','agi','awr'],
-    DT:  ['tck','str','blk','stm','awr'],
-    MLB: ['tck','awr','str','cvr','spd'],
-    OLB: ['tck','spd','cvr','str','agi'],
-    CB:  ['cvr','spd','agi','tck','awr'],
-    FS:  ['cvr','awr','spd','tck','str'],
-    SS:  ['tck','cvr','str','spd','awr'],
-    K:   ['kpw','kac','stm','awr','spd'],
-    P:   ['kpw','kac','stm','awr','spd'],
+    QB: ['thr','acc','awr','spd','agi'],  RB: ['spd','agi','str','ctc','stm'],
+    FB: ['str','blk','stm','spd','agi'],  WR: ['spd','ctc','rtr','agi','awr'],
+    TE: ['ctc','blk','str','spd','awr'],  LT: ['blk','str','awr','stm','agi'],
+    LG: ['blk','str','awr','stm','agi'],  C:  ['blk','str','awr','stm','agi'],
+    RG: ['blk','str','awr','stm','agi'],  RT: ['blk','str','awr','stm','agi'],
+    DE: ['tck','str','spd','agi','awr'],  DT: ['tck','str','blk','stm','awr'],
+    MLB:['tck','awr','str','cvr','spd'],  OLB:['tck','spd','cvr','str','agi'],
+    CB: ['cvr','spd','agi','tck','awr'],  FS: ['cvr','awr','spd','tck','str'],
+    SS: ['tck','cvr','str','spd','awr'],  K:  ['kpw','kac','stm','awr','spd'],
+    P:  ['kpw','kac','stm','awr','spd'],
   };
   const keys = posWeights[player.pos] || Object.keys(s);
   const weights = [3,3,2,1,1];
   let total = 0, wSum = 0;
-  keys.forEach((k,i) => {
-    const w = weights[i] || 1;
-    total += (s[k] || 5) * w;
-    wSum += w;
-  });
+  keys.forEach((k,i) => { const w = weights[i]||1; total += (s[k]||5)*w; wSum += w; });
   return Math.round(total / wSum);
 }

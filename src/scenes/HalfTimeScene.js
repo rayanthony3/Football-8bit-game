@@ -1,5 +1,5 @@
 import { CFG } from '../config.js';
-import { getOverall } from '../data/teams.js';
+import { getOverall, getStars, starsStr } from '../data/teams.js';
 
 export class HalfTimeScene extends Phaser.Scene {
   constructor() { super({ key: 'HalfTimeScene' }); }
@@ -74,9 +74,9 @@ export class HalfTimeScene extends Phaser.Scene {
     const topWRs = allPlayers.filter(p => p.pos === 'WR').sort((a,b) => getOverall(b) - getOverall(a));
 
     const perf = [
-      topQBs[0] ? `QB  ${topQBs[0].name}  OVR ${getOverall(topQBs[0])}` : '',
-      topRBs[0] ? `RB  ${topRBs[0].name}  OVR ${getOverall(topRBs[0])}` : '',
-      topWRs[0] ? `WR  ${topWRs[0].name}  OVR ${getOverall(topWRs[0])}` : '',
+      topQBs[0] ? `QB  ${topQBs[0].name}  ${starsStr(getStars(getOverall(topQBs[0])))}` : '',
+      topRBs[0] ? `RB  ${topRBs[0].name}  ${starsStr(getStars(getOverall(topRBs[0])))}` : '',
+      topWRs[0] ? `WR  ${topWRs[0].name}  ${starsStr(getStars(getOverall(topWRs[0])))}` : '',
     ];
     perf.filter(Boolean).forEach((line, i) => {
       this.add.text(WIDTH/2, perfY + 18 + i * 18, line, {
