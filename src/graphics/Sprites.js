@@ -89,7 +89,7 @@ export function drawPlayerSprite(g, primary, secondary, isControlled, isBallCarr
 }
 
 // ─── Field background (render texture) ───────────────────────────────────
-export function createFieldTexture(scene) {
+export function createFieldTexture(scene, teamColors = {}) {
   const fw = CFG.FIELD_WORLD_W;
   const fh = CFG.FIELD_WORLD_H;
   const rt = scene.add.renderTexture(0, 0, fw, fh);
@@ -103,19 +103,24 @@ export function createFieldTexture(scene) {
   const FAR_H  = CFG.FIELD_FAR_HASH_Y;
   const NEAR_H = CFG.FIELD_NEAR_HASH_Y;
 
-  // Sky / upper stadium
-  g.fillStyle(CFG.COLORS.SKY);
+  const homeP = teamColors.homePrimary   ?? 0x1a3a8a;
+  const homeS = teamColors.homeSecondary ?? 0xffd700;
+  const awayP = teamColors.awayPrimary   ?? 0x8b0000;
+  const awayS = teamColors.awaySecondary ?? 0xc8c8c8;
+
+  // Upper stadium concrete
+  g.fillStyle(0x1e1e28);
   g.fillRect(0, 0, fw, FAR_Y);
 
-  // Upper stands (far crowd)
-  _drawCrowd(g, fw, FAR_Y - 48, 48);
+  // Upper stands — far crowd (home fans dominate)
+  _drawCrowd(g, fw, FAR_Y - 52, 52, homeP, homeS, 0.72);
 
-  // Lower stands (near crowd)
-  _drawCrowd(g, fw, NEAR_Y + 2, 48);
+  // Lower stands — near crowd (mix of home + away)
+  _drawCrowd(g, fw, NEAR_Y + 2, 50, awayP, awayS, 0.45);
 
-  // Bottom of screen
-  g.fillStyle(CFG.COLORS.SKY);
-  g.fillRect(0, NEAR_Y + 50, fw, fh - NEAR_Y - 50);
+  // Bottom bar
+  g.fillStyle(0x1e1e28);
+  g.fillRect(0, NEAR_Y + 52, fw, fh - NEAR_Y - 52);
 
   // Alternating green stripes (10-yard sections)
   for (let s = 0; s < 10; s++) {
@@ -174,17 +179,36 @@ export function createFieldTexture(scene) {
   return rt;
 }
 
-function _drawCrowd(g, fw, startY, h) {
-  const colors = [0x2a1a3a, 0x1a2a4a, 0x3a1a1a, 0x1a3a1a, 0x2a2a1a];
-  for (let x = 0; x < fw; x += 10) {
-    const col = colors[Math.floor(Math.random() * colors.length)];
-    const rowH = 6 + Math.floor(Math.random() * 6);
-    const startRow = Math.floor(Math.random() * 3) * 8;
-    g.fillStyle(col);
-    g.fillRect(x, startY + startRow, 10, rowH);
-    // "head" dots
-    g.fillStyle(0xffd0a0, 0.4);
-    g.fillCircle(x + 5, startY + startRow - 3, 3);
+function _drawCrowd(g, fw, startY, h, primaryColor, secondaryColor, homeFraction) {
+  // Bleacher rows
+  const rowH = 9, rows = Math.floor(h / rowH);
+  for (let row = 0; row < rows; row++) {
+    const ry = startY + row * rowH;
+    // Concrete riser
+    g.fillStyle(0x2a2a38);
+    g.fillRect(0, ry + rowH - 2, fw, 2);
+
+    for (let x = 0; x < fw; x += 9) {
+      // Seat
+      g.fillStyle(0x18181f);
+      g.fillRect(x + 1, ry + 5, 7, 4);
+
+      // Fan jersey — weighted toward home team color
+      const r = Math.random();
+      let jerseyColor;
+      if (r < homeFraction)        jerseyColor = primaryColor;
+      else if (r < homeFraction + 0.15) jerseyColor = secondaryColor;
+      else if (r < homeFraction + 0.22) jerseyColor = 0x888888; // neutral
+      else                         jerseyColor = 0x222222;  // empty seat
+
+      g.fillStyle(jerseyColor, 0.88);
+      g.fillRect(x + 1, ry + 2, 7, 5);
+
+      // Head (skin)
+      const skinTones = [0xd4a574, 0xc8925a, 0xe8c89a, 0x8b5c3a];
+      g.fillStyle(skinTones[(x >> 2) % skinTones.length], 0.7);
+      g.fillCircle(x + 4, ry, 3);
+    }
   }
 }
 

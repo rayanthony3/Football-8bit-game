@@ -38,8 +38,8 @@ export const CFG = {
 
   COLORS: {
     SKY:          0x0d1b2a,
-    FIELD:        0x2d5a27,
-    FIELD_ALT:    0x265223,
+    FIELD:        0x4a9a32,
+    FIELD_ALT:    0x3e8229,
     LINE:         0xffffff,
     HASH:         0xbbbbbb,
     ENDZONE_A:    0x1a3a8a,
