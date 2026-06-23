@@ -9,7 +9,8 @@ export class SetupScene extends Phaser.Scene {
   create() {
     this.gs = new GameState();
     this.selectedTeam = 0;
-    this.selectedPos = 'QB';
+    this.selectedPos  = 'QB';
+    this.selectedMode = 'COACH';
     this._step = 'TEAM';
 
     this._buildBG();
@@ -125,13 +126,13 @@ export class SetupScene extends Phaser.Scene {
     });
 
     const nextBtn = this._track(this.add.image(WIDTH/2, HEIGHT - 45, 'btn_primary').setInteractive({ useHandCursor: true }));
-    this._track(this.add.text(WIDTH/2, HEIGHT - 45, 'SELECT POSITION  ▶', {
+    this._track(this.add.text(WIDTH/2, HEIGHT - 45, 'SELECT MODE  ▶', {
       fontSize: '14px', fontFamily: 'monospace', color: '#ffd700',
     }).setOrigin(0.5));
     nextBtn.on('pointerdown', () => {
       this.gs.playerTeamIdx = this.selectedTeam;
-      this._step = 'POSITION';
-      this._showPositionSelect();
+      this._step = 'MODE';
+      this._showModeSelect();
     });
 
     const backBtn = this._track(this.add.image(70, HEIGHT - 45, 'btn_small').setInteractive({ useHandCursor: true }));
@@ -250,9 +251,123 @@ export class SetupScene extends Phaser.Scene {
     }).setOrigin(0.5));
     nextBtn.on('pointerdown', () => {
       this.gs.playerTeamIdx = this.selectedTeam;
-      this.gs.playerPos = this.selectedPos;
+      this.gs.playerPos     = this.selectedPos;
+      this.gs.gameMode      = this.selectedMode;
       this.cameras.main.fadeOut(300, 0, 0, 0);
       this.time.delayedCall(300, () => this.scene.start('GameScene', { gs: this.gs }));
+    });
+
+    const backBtn = this._track(this.add.image(70, HEIGHT - 45, 'btn_small').setInteractive({ useHandCursor: true }));
+    this._track(this.add.text(70, HEIGHT - 45, '◀ BACK', {
+      fontSize: '12px', fontFamily: 'monospace', color: '#aaddff',
+    }).setOrigin(0.5));
+    backBtn.on('pointerdown', () => this._showModeSelect());
+  }
+
+  _showModeSelect() {
+    this._clearScene();
+    const { WIDTH, HEIGHT } = CFG;
+    const team = this.gs.teams[this.selectedTeam];
+
+    this._track(this.add.text(WIDTH/2, 58, 'CHOOSE GAME MODE', {
+      fontSize: '20px', fontFamily: 'monospace', color: '#ffffff',
+      stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0.5));
+
+    this._track(this.add.text(WIDTH/2, 82, `Team: ${team.name}`, {
+      fontSize: '12px', fontFamily: 'monospace',
+      color: '#' + team.secondary.toString(16).padStart(6,'0'),
+    }).setOrigin(0.5));
+
+    const modes = [
+      {
+        id: 'PLAYER',
+        label: 'PLAYER',
+        sub: 'Control a player on every play',
+        detail: 'Pick your position, get on the field and control your player with the D-pad. Call plays on offense or defense.',
+        color: 0x004422,
+        border: 0x00ff88,
+      },
+      {
+        id: 'COACH',
+        label: 'COACH',
+        sub: 'Call plays, watch CPU execute',
+        detail: 'Select plays from the playbook on both sides of the ball. CPU players execute your calls automatically.',
+        color: 0x001a44,
+        border: 0x4488ff,
+      },
+      {
+        id: 'SIM',
+        label: 'SIMULATE',
+        sub: 'Full CPU simulation — spectate',
+        detail: 'Sit back and watch. Both teams are controlled by the CPU. Great for scouting or just enjoying a game.',
+        color: 0x220022,
+        border: 0xaa44ff,
+      },
+    ];
+
+    const cardW = 220, cardH = 200;
+    const startX = WIDTH / 2 - (modes.length - 1) * (cardW / 2 + 10);
+
+    modes.forEach((m, i) => {
+      const cx = WIDTH / 2 + (i - 1) * (cardW + 14);
+      const cy = HEIGHT / 2 - 20;
+      const isSelected = this.selectedMode === m.id;
+
+      const card = this._track(this.add.rectangle(cx, cy, cardW, cardH, m.color, 0.9));
+      card.setStrokeStyle(isSelected ? 3 : 1, isSelected ? m.border : 0x334466);
+      card.setInteractive({ useHandCursor: true });
+
+      this._track(this.add.text(cx, cy - cardH/2 + 22, m.label, {
+        fontSize: '18px', fontFamily: 'monospace', fontStyle: 'bold',
+        color: '#' + m.border.toString(16).padStart(6,'0'),
+        stroke: '#000000', strokeThickness: 2,
+      }).setOrigin(0.5));
+
+      this._track(this.add.text(cx, cy - cardH/2 + 46, m.sub, {
+        fontSize: '9px', fontFamily: 'monospace', color: '#aaaacc',
+        align: 'center', wordWrap: { width: cardW - 20 },
+      }).setOrigin(0.5));
+
+      this._track(this.add.text(cx, cy + 10, m.detail, {
+        fontSize: '9px', fontFamily: 'monospace', color: '#888899',
+        align: 'center', wordWrap: { width: cardW - 24 },
+      }).setOrigin(0.5));
+
+      if (isSelected) {
+        this._track(this.add.text(cx, cy + cardH/2 - 16, '▼ SELECTED ▼', {
+          fontSize: '10px', fontFamily: 'monospace',
+          color: '#' + m.border.toString(16).padStart(6,'0'),
+        }).setOrigin(0.5));
+      }
+
+      card.on('pointerdown', () => {
+        this.selectedMode = m.id;
+        this._showModeSelect();
+      });
+      card.on('pointerover', () => card.setStrokeStyle(3, m.border));
+      card.on('pointerout',  () => card.setStrokeStyle(isSelected ? 3 : 1, isSelected ? m.border : 0x334466));
+    });
+
+    // If PLAYER mode, next goes to position select; otherwise go straight to game
+    const isPlayerMode = this.selectedMode === 'PLAYER';
+    const nextLabel = isPlayerMode ? 'SELECT POSITION  ▶' : 'START GAME  ▶';
+
+    const nextBtn = this._track(this.add.image(WIDTH/2, HEIGHT - 45, 'btn_primary').setInteractive({ useHandCursor: true }));
+    this._track(this.add.text(WIDTH/2, HEIGHT - 45, nextLabel, {
+      fontSize: '14px', fontFamily: 'monospace', color: '#ffd700',
+    }).setOrigin(0.5));
+    nextBtn.on('pointerdown', () => {
+      this.gs.gameMode = this.selectedMode;
+      if (isPlayerMode) {
+        this._step = 'POSITION';
+        this._showPositionSelect();
+      } else {
+        this.gs.playerTeamIdx = this.selectedTeam;
+        this.gs.playerPos     = this.selectedPos;
+        this.cameras.main.fadeOut(300, 0, 0, 0);
+        this.time.delayedCall(300, () => this.scene.start('GameScene', { gs: this.gs }));
+      }
     });
 
     const backBtn = this._track(this.add.image(70, HEIGHT - 45, 'btn_small').setInteractive({ useHandCursor: true }));

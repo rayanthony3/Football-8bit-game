@@ -11,6 +11,7 @@ export class GameState {
     this.teams = [teamA, teamB];
     this.playerTeamIdx = 0;
     this.playerPos = 'QB';
+    this.gameMode = 'COACH';
 
     this.quarter = 1;
     this.clock = CFG.QUARTER_SECONDS;

@@ -1,5 +1,5 @@
 import { CFG } from '../config.js';
-import { createPlayerTexture, createBallTexture, createButtonTexture, createPanelTexture } from '../graphics/Sprites.js';
+import { createButtonTexture, createPanelTexture } from '../graphics/Sprites.js';
 
 export class BootScene extends Phaser.Scene {
   constructor() { super({ key: 'BootScene' }); }
@@ -10,12 +10,7 @@ export class BootScene extends Phaser.Scene {
     // Background
     this.add.rectangle(WIDTH/2, HEIGHT/2, WIDTH, HEIGHT, CFG.COLORS.SKY);
 
-    // Generate textures
-    createPlayerTexture(this, 'player_a', CFG.TEAM_A.primary, CFG.TEAM_A.secondary, 'OFF');
-    createPlayerTexture(this, 'player_b', CFG.TEAM_B.primary, CFG.TEAM_B.secondary, 'DEF');
-    createPlayerTexture(this, 'player_a_hl', 0x00ffcc, CFG.TEAM_A.secondary, '');
-    createPlayerTexture(this, 'player_b_hl', 0xff88cc, CFG.TEAM_B.secondary, '');
-    createBallTexture(this);
+    // Generate button/panel textures (players are drawn procedurally in GameScene)
     createButtonTexture(this, 'btn_primary', 180, 44, 0x1a3a8a, 0xffd700);
     createButtonTexture(this, 'btn_secondary', 180, 44, 0x8b0000, 0xc8c8c8);
     createButtonTexture(this, 'btn_neutral', 160, 40, 0x1e1e3e, 0x4488ff);
