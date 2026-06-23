@@ -1,0 +1,20 @@
+{
+  "name": "football-8bit-game",
+  "version": "1.0.0",
+  "description": "8-bit American Football Mobile Game",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "cap:ios": "npx cap add ios && npx cap sync ios"
+  },
+  "dependencies": {
+    "phaser": "^3.60.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "@capacitor/core": "^5.0.0",
+    "@capacitor/ios": "^5.0.0",
+    "@capacitor/cli": "^5.0.0"
+  }
+}

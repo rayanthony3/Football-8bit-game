@@ -1,0 +1,19 @@
+{
+  "appId": "com.gridiron8bit.football",
+  "appName": "GridIron 8-Bit",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "ios": {
+    "scheme": "GridIron8Bit",
+    "backgroundColor": "#0a0a0a",
+    "contentInset": "always",
+    "preferredContentMode": "mobile"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#0a0a0a",
+      "showSpinner": false
+    }
+  }
+}
