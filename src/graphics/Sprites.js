@@ -1,90 +1,133 @@
 import { CFG } from '../config.js';
 
-// ─── Player sprite (Hoopland/90s style, 3/4 elevated view) ───────────────
+// ─── Player sprite (2.5D elevated 3/4 view) ──────────────────────────────
 export function drawPlayerSprite(g, primary, secondary, isControlled, isBallCarrier) {
-  const w = CFG.PLAYER_W, h = CFG.PLAYER_H;
+  const W = CFG.PLAYER_W, H = CFG.PLAYER_H;
 
-  // Drop shadow
-  g.fillStyle(0x000000, 0.28);
-  g.fillEllipse(0, h * 0.5, w * 1.1, h * 0.18);
+  // ── Ground shadow ─────────────────────────────────────────────────────────
+  g.fillStyle(0x000000, 0.22);
+  g.fillEllipse(1, H * 0.53, W * 1.45, H * 0.10);
 
-  // Cleats
+  // ── BACK LEG (far = smaller for depth) ───────────────────────────────────
+  g.fillStyle(secondary);
+  g.fillRoundedRect(-W * 0.29, H * 0.16, W * 0.23, H * 0.30, 4);
+  // pant stripe
+  g.fillStyle(primary, 0.50);
+  g.fillRect(-W * 0.29, H * 0.26, W * 0.23, H * 0.06);
+  // back cleat
   g.fillStyle(0x111111);
-  g.fillRoundedRect(-w * 0.28, h * 0.36, w * 0.22, h * 0.14, 1);
-  g.fillRoundedRect(w * 0.06,  h * 0.36, w * 0.22, h * 0.14, 1);
+  g.fillRoundedRect(-W * 0.31, H * 0.44, W * 0.26, H * 0.07, 2);
 
-  // Pants
+  // ── FRONT LEG (near = larger for depth) ──────────────────────────────────
   g.fillStyle(secondary);
-  g.fillRect(-w * 0.28, h * 0.14, w * 0.56, h * 0.26);
+  g.fillRoundedRect(W * 0.06, H * 0.13, W * 0.27, H * 0.34, 4);
+  // pant stripe
+  g.fillStyle(primary, 0.50);
+  g.fillRect(W * 0.06, H * 0.23, W * 0.27, H * 0.06);
+  // front sock
+  g.fillStyle(0xdddddd);
+  g.fillRect(W * 0.06, H * 0.40, W * 0.27, H * 0.07);
+  // front cleat
+  g.fillStyle(0x111111);
+  g.fillRoundedRect(W * 0.04, H * 0.45, W * 0.30, H * 0.07, 2);
 
-  // Pant stripe
-  g.fillStyle(primary, 0.6);
-  g.fillRect(-w * 0.28, h * 0.22, w * 0.56, h * 0.05);
-
-  // Jersey body
+  // ── SHOULDER PADS (wide, 2.5D volume) ────────────────────────────────────
   g.fillStyle(primary);
-  g.fillRoundedRect(-w * 0.38, -h * 0.1, w * 0.76, h * 0.28, 3);
+  g.fillRoundedRect(-W * 0.54, -H * 0.26, W * 1.08, H * 0.18, 7);
+  // pad top highlight
+  g.fillStyle(0xffffff, 0.10);
+  g.fillRoundedRect(-W * 0.52, -H * 0.26, W * 0.60, H * 0.08, 5);
+  // pad bottom shadow
+  g.fillStyle(0x000000, 0.20);
+  g.fillRoundedRect(W * 0.16, -H * 0.26, W * 0.36, H * 0.18, 5);
 
-  // Shoulder stripe
+  // ── JERSEY BODY ───────────────────────────────────────────────────────────
+  g.fillStyle(primary);
+  g.fillRoundedRect(-W * 0.37, -H * 0.20, W * 0.74, H * 0.42, 5);
+  // jersey right-side depth shadow
+  g.fillStyle(0x000000, 0.18);
+  g.fillRoundedRect(W * 0.15, -H * 0.20, W * 0.22, H * 0.42, 5);
+  // jersey chest stripe
   g.fillStyle(secondary);
-  g.fillRect(-w * 0.38, -h * 0.1, w * 0.76, h * 0.06);
-  g.fillRect(-w * 0.38, -h * 0.1, w * 0.07, h * 0.28);
-  g.fillRect(w * 0.31,  -h * 0.1, w * 0.07, h * 0.28);
+  g.fillRect(-W * 0.37, -H * 0.17, W * 0.74, H * 0.08);
+  // side stripes (vertical)
+  g.fillRect(-W * 0.52, -H * 0.26, W * 0.10, H * 0.18);
+  g.fillRect(W * 0.42,  -H * 0.26, W * 0.10, H * 0.18);
+  // number area (light box)
+  g.fillStyle(secondary, 0.28);
+  g.fillRect(-W * 0.15, -H * 0.06, W * 0.30, H * 0.18);
 
-  // Arms
+  // ── BACK ARM ──────────────────────────────────────────────────────────────
   g.fillStyle(primary);
-  g.fillRoundedRect(-w * 0.52, -h * 0.07, w * 0.16, h * 0.22, 2);  // left
-  g.fillRoundedRect(w * 0.36,  -h * 0.07, w * 0.16, h * 0.22, 2);  // right
+  g.fillRoundedRect(-W * 0.58, -H * 0.20, W * 0.18, H * 0.28, 4);
+  g.fillStyle(0x1c1c1c);
+  g.fillRoundedRect(-W * 0.58, H * 0.04, W * 0.18, H * 0.14, 3);
 
-  // Hand stubs
+  // ── NECK ──────────────────────────────────────────────────────────────────
   g.fillStyle(CFG.COLORS.SKIN);
-  g.fillCircle(-w * 0.44, h * 0.12, w * 0.1);
-  g.fillCircle(w * 0.44,  h * 0.12, w * 0.1);
+  g.fillRoundedRect(-W * 0.11, -H * 0.36, W * 0.22, H * 0.17, 3);
 
-  // Neck
-  g.fillStyle(CFG.COLORS.SKIN);
-  g.fillRect(-w * 0.1, -h * 0.2, w * 0.2, h * 0.12);
-
-  // Helmet shell
+  // ── HELMET SHELL ──────────────────────────────────────────────────────────
   g.fillStyle(primary);
-  g.fillEllipse(0, -h * 0.32, w * 0.72, h * 0.44);
-
-  // Helmet stripe (single down center)
+  g.fillEllipse(0, -H * 0.52, W * 0.82, H * 0.54);
+  // 3D top-left highlight
+  g.fillStyle(0xffffff, 0.13);
+  g.fillEllipse(-W * 0.16, -H * 0.64, W * 0.40, H * 0.26);
+  // right-side depth shadow
+  g.fillStyle(0x000000, 0.26);
+  g.fillEllipse(W * 0.22, -H * 0.50, W * 0.30, H * 0.44);
+  // helmet stripe
   g.fillStyle(secondary);
-  g.fillRect(-w * 0.04, -h * 0.54, w * 0.08, h * 0.26);
+  g.fillRect(-W * 0.055, -H * 0.79, W * 0.11, H * 0.34);
 
-  // Ear holes
-  g.fillStyle(secondary, 0.5);
-  g.fillCircle(-w * 0.33, -h * 0.30, w * 0.1);
-  g.fillCircle(w * 0.33,  -h * 0.30, w * 0.1);
+  // ── EAR HOLES ─────────────────────────────────────────────────────────────
+  g.fillStyle(0x000000, 0.62);
+  g.fillCircle(-W * 0.35, -H * 0.47, W * 0.095);
+  g.fillCircle(W * 0.35,  -H * 0.47, W * 0.095);
 
-  // Facemask (horizontal bars)
-  g.lineStyle(2, secondary);
-  g.beginPath(); g.moveTo(-w * 0.26, -h * 0.14); g.lineTo(w * 0.26, -h * 0.14); g.strokePath();
-  g.beginPath(); g.moveTo(-w * 0.22, -h * 0.22); g.lineTo(w * 0.22, -h * 0.22); g.strokePath();
-  // Vertical bars
-  g.beginPath(); g.moveTo(-w * 0.22, -h * 0.08); g.lineTo(-w * 0.22, -h * 0.28); g.strokePath();
-  g.beginPath(); g.moveTo(w * 0.22,  -h * 0.08); g.lineTo(w * 0.22,  -h * 0.28); g.strokePath();
-  g.beginPath(); g.moveTo(0,          -h * 0.1);  g.lineTo(0,         -h * 0.28); g.strokePath();
+  // ── FACEMASK (solid bars for volume) ─────────────────────────────────────
+  g.fillStyle(secondary);
+  // horizontal bars
+  g.fillRoundedRect(-W * 0.31, -H * 0.37, W * 0.64, H * 0.068, 3);
+  g.fillRoundedRect(-W * 0.29, -H * 0.22, W * 0.60, H * 0.068, 3);
+  // vertical bars
+  g.fillRoundedRect(-W * 0.28, -H * 0.37, W * 0.068, H * 0.22, 3);
+  g.fillRoundedRect(-W * 0.02, -H * 0.37, W * 0.068, H * 0.22, 3);
+  g.fillRoundedRect(W * 0.22,  -H * 0.37, W * 0.068, H * 0.22, 3);
+  // visor tint (subtle blue)
+  g.fillStyle(0x99bbff, 0.10);
+  g.fillRect(-W * 0.25, -H * 0.35, W * 0.50, H * 0.19);
 
-  // Chin strap
-  g.lineStyle(1, 0x333333);
-  g.beginPath(); g.moveTo(-w * 0.2, -h * 0.1); g.lineTo(-w * 0.1, -h * 0.06); g.strokePath();
-  g.beginPath(); g.moveTo(w * 0.2,  -h * 0.1); g.lineTo(w * 0.1,  -h * 0.06); g.strokePath();
+  // chin strap
+  g.lineStyle(1.5, 0x222222, 0.85);
+  g.beginPath(); g.moveTo(-W * 0.22, -H * 0.21); g.lineTo(-W * 0.10, -H * 0.15); g.strokePath();
+  g.beginPath(); g.moveTo(W * 0.22,  -H * 0.21); g.lineTo(W * 0.10,  -H * 0.15); g.strokePath();
 
-  // Ball (carried in left arm)
+  // ── FRONT ARM (drawn last so it's on top) ────────────────────────────────
+  g.fillStyle(primary);
+  g.fillRoundedRect(W * 0.42, -H * 0.20, W * 0.18, H * 0.28, 4);
+  g.fillStyle(0x1c1c1c);
+  g.fillRoundedRect(W * 0.42, H * 0.04, W * 0.18, H * 0.14, 3);
+
+  // ── BALL (tucked under front arm when carrying) ───────────────────────────
   if (isBallCarrier) {
     g.fillStyle(CFG.COLORS.BALL);
-    g.fillEllipse(-w * 0.56, h * 0.05, w * 0.36, h * 0.2);
-    g.lineStyle(1, CFG.COLORS.BALL_STRIPE, 0.9);
-    g.beginPath(); g.moveTo(-w * 0.56, -h * 0.04); g.lineTo(-w * 0.56, h * 0.14); g.strokePath();
-    g.beginPath(); g.moveTo(-w * 0.68, h * 0.05);  g.lineTo(-w * 0.44, h * 0.05); g.strokePath();
+    g.fillEllipse(W * 0.58, H * 0.10, W * 0.40, H * 0.24);
+    // laces
+    g.fillStyle(0xffffff, 0.78);
+    g.fillRect(W * 0.49, H * 0.05, W * 0.038, H * 0.10);
+    g.fillRect(W * 0.57, H * 0.05, W * 0.038, H * 0.10);
+    g.fillRect(W * 0.65, H * 0.05, W * 0.038, H * 0.10);
+    g.fillRect(W * 0.47, H * 0.09, W * 0.26, H * 0.026);
+    // ball underside shadow
+    g.fillStyle(0x000000, 0.16);
+    g.fillEllipse(W * 0.58, H * 0.20, W * 0.36, H * 0.07);
   }
 
-  // Controlled player: cyan ring on helmet
+  // ── CONTROLLED PLAYER — ground halo ──────────────────────────────────────
   if (isControlled) {
-    g.lineStyle(2, 0x00ffff, 0.95);
-    g.strokeEllipse(0, -h * 0.32, w * 0.78, h * 0.5);
+    g.lineStyle(2.5, 0x00ffff, 0.92);
+    g.strokeEllipse(1, H * 0.53, W * 1.45, H * 0.10);
   }
 }
 

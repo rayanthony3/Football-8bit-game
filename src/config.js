@@ -25,8 +25,8 @@ export const CFG = {
   QUARTER_SECONDS: 120,
   PLAY_CLOCK: 30,
 
-  PLAYER_W: 22,
-  PLAYER_H: 34,
+  PLAYER_W: 28,
+  PLAYER_H: 44,
   BALL_W: 10,
   BALL_H: 6,
 

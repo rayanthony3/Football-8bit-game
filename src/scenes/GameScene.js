@@ -72,6 +72,8 @@ export class GameScene extends Phaser.Scene {
     g.setDepth(Math.round(sy));    // y-sort depth
 
     drawPlayerSprite(g, primary, secondary, isControlled, isBallCarrier);
+    g._primary   = primary;
+    g._secondary = secondary;
 
     // Position label
     const label = this.add.text(sx, sy - 26 * scale, pos, {
@@ -108,6 +110,12 @@ export class GameScene extends Phaser.Scene {
     s.setDepth(Math.round(s.y));
     s._label?.setDepth(Math.round(s.y) + 1);
     s._fatDot?.setDepth(Math.round(s.y) + 1);
+  }
+
+  _setCarrierBall(s) {
+    if (!s?.active) return;
+    s.clear();
+    drawPlayerSprite(s, s._primary, s._secondary, s._controlled, true);
   }
 
   _setUpFormation() {
@@ -645,22 +653,56 @@ export class GameScene extends Phaser.Scene {
       const isSneak  = offPlay?.id === 'qk';
       const carrierS = isSneak ? qbS : (rbS ?? qbS);
 
-      // Pre-compute destination so defenders can start pursuing immediately
       const startX = carrierS?.x ?? yardToX(this.gs.ballYard);
       const startY = carrierS?.y ?? this._fieldYToScreenY(0);
       const finalX = Phaser.Math.Clamp(
-        startX + offDir * yards * YW, CFG.EZ_W + 5, CFG.FIELD_WORLD_W - CFG.EZ_W - 5);
+        startX + offDir * yards * YW, EZ_W + 5, CFG.FIELD_WORLD_W - EZ_W - 5);
       const finalY = Phaser.Math.Clamp(
         startY + (Math.random() - 0.5) * 38, CFG.FIELD_FAR_Y + 5, CFG.FIELD_NEAR_Y - 5);
 
-      // LBs and DBs pursue toward ball carrier destination
-      for (const [,s] of [...defLBs, ...defDBs]) {
+      // ── DL breakthrough: strength vs OL blocking × fatigue ───────────────
+      const allPairs   = this._pairLinemen(offLine, defLine);
+      const runBreaks  = new Set();
+      for (const [oS, dS] of allPairs) {
+        if (!oS?._player || !dS?._player) continue;
+        const oBlk    = oS._player.stats?.blk ?? 5;
+        const dStr    = dS._player.stats?.str ?? 5;
+        const fatigue = oS._player.fatigue ?? 0;
+        const fatMod  = Math.max(0.40, 1 - fatigue / 180);
+        if (dStr > oBlk * fatMod + Math.random() * 4) runBreaks.add(dS);
+      }
+
+      // Locked pairs (DL that don't break through) do the normal struggle
+      this._animateLinemenStruggle(allPairs.filter(([, dS]) => !runBreaks.has(dS)), offDir);
+
+      // Breakaway DL: short push then rush carrier
+      for (const dS of runBreaks) {
+        const sp = dS._player?.stats?.spd ?? 5;
+        const ag = dS._player?.stats?.agi ?? 5;
+        this.tweens.add({
+          targets: dS, x: dS.x + offDir * 9, y: dS.y,
+          duration: 230, ease: 'Power2.easeIn', onUpdate: () => this._syncLabel(dS),
+          onComplete: () => {
+            const rx  = Phaser.Math.Clamp(finalX + (Math.random()-0.5)*30, EZ_W+5, CFG.FIELD_WORLD_W-EZ_W-5);
+            const ry  = Phaser.Math.Clamp(finalY + (Math.random()-0.5)*24, CFG.FIELD_FAR_Y+5, CFG.FIELD_NEAR_Y-5);
+            const d   = Math.hypot(dS.x - rx, dS.y - ry);
+            const dur = Math.max(270, Math.min(850, d / (0.20 + (sp+ag)/20 * 0.32)));
+            this.tweens.add({
+              targets: dS, x: rx, y: ry, scale: screenYToScale(ry),
+              duration: dur, ease: 'Power2.easeIn', onUpdate: () => this._syncLabel(dS),
+            });
+          },
+        });
+      }
+
+      // LBs and DBs pursue toward ball carrier destination from snap
+      for (const [, s] of [...defLBs, ...defDBs]) {
         const spd = s._player?.stats?.spd ?? 6;
         const agi = s._player?.stats?.agi ?? 6;
         const pxPerMs = 0.18 + (spd + agi) / 20 * 0.32;
         const dist = Math.hypot(s.x - finalX, s.y - finalY);
         const dur  = Math.max(480, Math.min(1300, dist / pxPerMs));
-        const px = Phaser.Math.Clamp(finalX + (Math.random()-0.5)*50, CFG.EZ_W+5, CFG.FIELD_WORLD_W-CFG.EZ_W-5);
+        const px = Phaser.Math.Clamp(finalX + (Math.random()-0.5)*50, EZ_W+5, CFG.FIELD_WORLD_W-EZ_W-5);
         const py = Phaser.Math.Clamp(finalY + (Math.random()-0.5)*35, CFG.FIELD_FAR_Y+5, CFG.FIELD_NEAR_Y-5);
         this.tweens.add({
           targets: s, x: px, y: py, scale: screenYToScale(py),
@@ -677,17 +719,16 @@ export class GameScene extends Phaser.Scene {
         }
       });
 
-      // Run 500ms: carrier moves to resolved destination
+      // Carrier runs at 500ms — ball drawn in sprite, separate ball hidden
       this.time.delayedCall(500, () => {
         if (!carrierS) { onDone(); return; }
+        this._setCarrierBall(carrierS);
+        this._ball.setVisible(false);
 
         this.tweens.add({
           targets: carrierS, x: finalX, y: finalY, scale: screenYToScale(finalY),
           duration: 850, ease: 'Sine.easeInOut',
-          onUpdate: () => {
-            this._syncLabel(carrierS);
-            if (this._ball.visible) this._ball.setPosition(carrierS.x, carrierS.y);
-          },
+          onUpdate: () => this._syncLabel(carrierS),
           onComplete: () => this._animatePursuit(carrierS, allDef, onDone),
         });
 
@@ -699,49 +740,74 @@ export class GameScene extends Phaser.Scene {
             onUpdate: () => this._syncLabel(fbS) });
         }
         // OL surge forward
-        for (const [,s] of offLine) {
+        for (const [, s] of offLine) {
           this.tweens.add({ targets: s, x: s.x + offDir * (16 + Math.random() * 18),
             duration: 680, delay: 140, ease: 'Power1', onUpdate: () => this._syncLabel(s) });
         }
       });
 
     } else if (isPass) {
-      // ── QB 3-step drop ────────────────────────────────────────────────────
+      // ── QB drop-back ─────────────────────────────────────────────────────
       const dropX = isSack
-        ? Phaser.Math.Clamp(qbX + offDir * yards * YW, CFG.EZ_W + 5, CFG.FIELD_WORLD_W - CFG.EZ_W - 5)
-        : qbX - offDir * 32;
+        ? Phaser.Math.Clamp(qbX + offDir * yards * YW, EZ_W + 5, CFG.FIELD_WORLD_W - EZ_W - 5)
+        : qbX - offDir * 34;
 
       if (qbS) {
         this.tweens.add({
-          targets: qbS, x: dropX, y: qbY + 8,
-          duration: isSack ? 850 : 520, ease: 'Power2.easeOut',
-          onUpdate: () => {
-            this._syncLabel(qbS);
-            if (!isSack) this._ball.setPosition(qbS.x, qbS.y);
-          },
+          targets: qbS, x: dropX, y: qbY + 10,
+          duration: isSack ? 900 : 540, ease: 'Power2.easeOut',
+          onUpdate: () => { this._syncLabel(qbS); if (!isSack) this._ball.setPosition(qbS.x, qbS.y); },
           onComplete: () => { if (isSack) this._animatePursuit(qbS, allDef, onDone); },
         });
       }
 
-      // ── WRs run crisp routes — capped speed so coverage has a chance ──────
+      // ── WR route paths ────────────────────────────────────────────────────
       const wrTargets = {};
       for (const [k, wrS] of offWRs) {
         const wrSpd = wrS._player?.stats?.spd ?? 6;
         const dm    = offPlay?.id === 'fl' ? 2.2 : offPlay?.id === 'ps' ? 1.6 :
                       offPlay?.id === 'sl' ? 0.8 : offPlay?.id === 'cr' ? 1.1 : 1.0;
         const yd    = Math.max(3, (Math.abs(yards) + 5) * dm);
-        const tx    = Phaser.Math.Clamp(wrS.x + offDir * yd * YW, CFG.EZ_W + 5, CFG.FIELD_WORLD_W - CFG.EZ_W - 5);
-        const ty    = Phaser.Math.Clamp(wrS.y + (Math.random() - 0.5) * 90, CFG.FIELD_FAR_Y + 5, CFG.FIELD_NEAR_Y - 5);
+        const tx    = Phaser.Math.Clamp(wrS.x + offDir * yd * YW, EZ_W + 5, CFG.FIELD_WORLD_W - EZ_W - 5);
+        // Route cut direction based on play type
+        let tyOff = (Math.random() - 0.5) * 70;
+        if (offPlay?.id === 'sl') tyOff = (wrS.y < this._fieldYToScreenY(0) ? 55 : -55);
+        if (offPlay?.id === 'cr') tyOff = (wrS.y < this._fieldYToScreenY(0) ? 85 : -85);
+        const ty = Phaser.Math.Clamp(wrS.y + tyOff, CFG.FIELD_FAR_Y + 5, CFG.FIELD_NEAR_Y - 5);
         wrTargets[k] = { x: tx, y: ty };
-        // Fast WR (spd 10) tops at 1000ms; average (spd 6) runs at 1300ms
-        const routeDur = Math.max(1000, 1350 - (wrSpd - 5) * 60);
+        const routeDur = Math.max(980, 1320 - (wrSpd - 5) * 60);
         this.tweens.add({ targets: wrS, x: tx, y: ty, scale: screenYToScale(ty),
           duration: routeDur, delay: 160, ease: 'Sine.easeInOut',
           onUpdate: () => this._syncLabel(wrS) });
       }
 
-      // ── Coverage reacts ───────────────────────────────────────────────────
+      // ── Pass-rush: DL who beat blockers converge on QB ───────────────────
+      for (const [oS, dS] of this._pairLinemen(offLine, defLine)) {
+        if (!oS?._player || !dS?._player) continue;
+        const oBlk    = oS._player.stats?.blk ?? 5;
+        const dStr    = dS._player.stats?.str ?? 5;
+        const fatigue = oS._player.fatigue ?? 0;
+        const fatMod  = Math.max(0.40, 1 - fatigue / 180);
+        if (dStr > oBlk * fatMod + Math.random() * 3) {
+          const breakTime = 550 + Math.random() * 500;
+          this.time.delayedCall(breakTime, () => {
+            if (!dS?.active) return;
+            const rx  = Phaser.Math.Clamp(dropX + (Math.random()-0.5)*18, EZ_W+5, CFG.FIELD_WORLD_W-EZ_W-5);
+            const ry  = Phaser.Math.Clamp(qbY  + (Math.random()-0.5)*14, CFG.FIELD_FAR_Y+5, CFG.FIELD_NEAR_Y-5);
+            const sp  = dS._player?.stats?.spd ?? 5;
+            const d   = Math.hypot(dS.x - rx, dS.y - ry);
+            const dur = Math.max(250, Math.min(700, d / (0.22 + sp / 20 * 0.30)));
+            this.tweens.add({
+              targets: dS, x: rx, y: ry, scale: screenYToScale(ry),
+              duration: dur, ease: 'Power3.easeIn', onUpdate: () => this._syncLabel(dS),
+            });
+          });
+        }
+      }
+
+      // ── Coverage ──────────────────────────────────────────────────────────
       if (isManCov) {
+        // Man: each DB shadows the WR they're aligned on
         const paired = new Set();
         for (const [wk, wrS] of offWRs) {
           const tgt = wrTargets[wk]; if (!tgt) continue;
@@ -753,84 +819,164 @@ export class GameScene extends Phaser.Scene {
           }
           if (best) {
             const dbSpd = best[1]._player?.stats?.spd ?? 6;
-            // DBs slightly slower than WRs (coverage disadvantage = realistic)
-            const covDur = Math.max(1080, 1420 - (dbSpd - 5) * 55);
+            // DB runs the same route a half-step behind
+            const covDur = Math.max(1060, 1400 - (dbSpd - 5) * 55);
             paired.add(best[0]);
-            this.tweens.add({ targets: best[1], x: tgt.x - offDir * 12, y: tgt.y,
-              scale: screenYToScale(tgt.y), duration: covDur, delay: 210,
+            this.tweens.add({ targets: best[1], x: tgt.x - offDir * 10, y: tgt.y,
+              scale: screenYToScale(tgt.y), duration: covDur, delay: 220,
               ease: 'Sine.easeInOut', onUpdate: () => this._syncLabel(best[1]) });
           }
         }
-        // Unpaired DBs shift toward play side
+        // Unassigned DBs rotate toward play side
         for (const [dk, dbS] of defDBs) {
           if (!paired.has(dk)) {
-            this.tweens.add({ targets: dbS, x: dbS.x + offDir * 44, y: dbS.y,
-              duration: 700, ease: 'Power2', onUpdate: () => this._syncLabel(dbS) });
+            this.tweens.add({ targets: dbS, x: dbS.x + offDir * 48, y: dbS.y,
+              duration: 720, ease: 'Power2', onUpdate: () => this._syncLabel(dbS) });
           }
         }
       } else {
-        // Zone drop — everyone backs off
-        for (const [,dbS] of defDBs) {
-          this.tweens.add({ targets: dbS,
-            x: dbS.x - offDir * (16 + Math.random() * 22),
-            y: dbS.y + (Math.random() - 0.5) * 34, duration: 740, ease: 'Power1',
-            onUpdate: () => this._syncLabel(dbS) });
+        // Zone: drop back, then pick up any WR who enters the zone radius
+        const zoneRadius = 100;
+        for (const [, dbS] of defDBs) {
+          const dbSpd = dbS._player?.stats?.spd ?? 6;
+          const zx = dbS.x - offDir * (14 + Math.random() * 22);
+          const zy = dbS.y + (Math.random() - 0.5) * 30;
+          this.tweens.add({
+            targets: dbS, x: zx, y: zy, duration: 740, ease: 'Power1',
+            onUpdate: () => this._syncLabel(dbS),
+            onComplete: () => {
+              // Pick up nearest WR whose route enters this zone
+              let closestDest = null, closestD = Infinity;
+              for (const [wk] of offWRs) {
+                const dest = wrTargets[wk]; if (!dest) continue;
+                const d = Math.hypot(zx - dest.x, zy - dest.y);
+                if (d < zoneRadius && d < closestD) { closestD = d; closestDest = dest; }
+              }
+              if (closestDest) {
+                const pickDur = Math.max(460, 860 - (dbSpd - 5) * 36);
+                this.tweens.add({
+                  targets: dbS, x: closestDest.x - offDir * 8, y: closestDest.y,
+                  scale: screenYToScale(closestDest.y), duration: pickDur, ease: 'Sine.easeIn',
+                  onUpdate: () => this._syncLabel(dbS),
+                });
+              }
+            },
+          });
         }
       }
 
-      // ── QB makes read ~1000ms after snap: throw or scramble ──────────────
+      // ── LBs: blitz toward QB or hook zone ────────────────────────────────
+      for (const [, lbS] of defLBs) {
+        if (defPlay?.type === 'BLITZ') {
+          const sp  = lbS._player?.stats?.spd ?? 6;
+          const d   = Math.hypot(lbS.x - dropX, lbS.y - qbY);
+          const dur = Math.max(440, Math.min(980, d / (0.20 + sp / 20 * 0.30)));
+          this.tweens.add({
+            targets: lbS, x: dropX + (Math.random()-0.5)*24, y: qbY + (Math.random()-0.5)*20,
+            scale: screenYToScale(qbY), duration: dur, delay: 90 + Math.random()*110,
+            ease: 'Power2.easeIn', onUpdate: () => this._syncLabel(lbS),
+          });
+        } else {
+          this.tweens.add({
+            targets: lbS, x: lbS.x - offDir * (6 + Math.random()*12),
+            y: lbS.y + (Math.random()-0.5)*24, duration: 640, delay: 150,
+            ease: 'Power1', onUpdate: () => this._syncLabel(lbS),
+          });
+        }
+      }
+
+      // ── QB reads and throws / scrambles ──────────────────────────────────
       if (!isSack) {
         const throwDelay = 900 + Math.random() * 380;
         this.time.delayedCall(throwDelay, () => {
+
           if (outcome.isScramble) {
-            // QB tucks and takes off
             const scrX = Phaser.Math.Clamp(
-              (qbS?.x ?? dropX) + offDir * yards * YW, CFG.EZ_W + 5, CFG.FIELD_WORLD_W - CFG.EZ_W - 5);
+              (qbS?.x ?? dropX) + offDir * yards * YW, EZ_W+5, CFG.FIELD_WORLD_W-EZ_W-5);
             const scrY = Phaser.Math.Clamp(
-              (qbS?.y ?? qbY) + (Math.random() - 0.5) * 30, CFG.FIELD_FAR_Y + 5, CFG.FIELD_NEAR_Y - 5);
-            this._ball.setPosition(qbS?.x ?? dropX, qbS?.y ?? qbY).setVisible(true);
+              (qbS?.y ?? qbY) + (Math.random()-0.5)*30, CFG.FIELD_FAR_Y+5, CFG.FIELD_NEAR_Y-5);
             if (qbS) {
+              this._setCarrierBall(qbS);
+              this._ball.setVisible(false);
               this.tweens.add({
                 targets: qbS, x: scrX, y: scrY, scale: screenYToScale(scrY),
-                duration: 800, ease: 'Sine.easeInOut',
-                onUpdate: () => { this._syncLabel(qbS); this._ball.setPosition(qbS.x, qbS.y); },
-                onComplete: () => { this._ball.setVisible(false); this._animatePursuit(qbS, allDef, onDone); },
+                duration: 820, ease: 'Sine.easeInOut',
+                onUpdate: () => this._syncLabel(qbS),
+                onComplete: () => this._animatePursuit(qbS, allDef, onDone),
               });
             } else onDone();
+
           } else {
-            // Normal throw — pick a receiver
+            // QB intelligently targets most-open receiver (most separation from DBs)
+            let chosen = null, bestSep = -Infinity;
+            for (const [wk, wrS] of offWRs) {
+              const dest = wrTargets[wk]; if (!dest) continue;
+              let minDB = Infinity;
+              for (const [, dbS] of defDBs) {
+                if (!dbS?.active) continue;
+                const d = Math.hypot(dbS.x - dest.x, dbS.y - dest.y);
+                if (d < minDB) minDB = d;
+              }
+              const sep = minDB + (Math.random() * 16 - 8); // add QB-read noise
+              if (sep > bestSep) { bestSep = sep; chosen = [wk, wrS]; }
+            }
             const candidates = offWRs.filter(([k]) => wrTargets[k]);
-            const chosen  = candidates[Math.floor(Math.random() * candidates.length)];
+            if (!chosen && candidates.length) chosen = candidates[Math.floor(Math.random() * candidates.length)];
+
             const chosenS = chosen?.[1];
             const dest    = chosen ? wrTargets[chosen[0]] : { x: (qbS?.x ?? dropX) + offDir * 80, y: qbY };
 
             this._ball.setPosition(qbS?.x ?? dropX, qbS?.y ?? qbY).setVisible(true);
 
             const midX  = (this._ball.x + dest.x) / 2;
-            const peakY = Math.min(this._ball.y, dest.y) - 52;
+            const peakY = Math.min(this._ball.y, dest.y) - 56;
+
             this.tweens.add({
-              targets: this._ball, x: midX, y: peakY, duration: 290, ease: 'Sine.easeOut',
+              targets: this._ball, x: midX, y: peakY, duration: 285, ease: 'Sine.easeOut',
               onComplete: () => {
                 this.tweens.add({
-                  targets: this._ball, x: dest.x, y: dest.y, duration: 280, ease: 'Sine.easeIn',
+                  targets: this._ball, x: dest.x, y: dest.y, duration: 275, ease: 'Sine.easeIn',
                   onComplete: () => {
                     if (isInterception) {
                       const intDB = defDBs[0]?.[1];
                       if (intDB) this.tweens.add({ targets: this._ball, x: intDB.x, y: intDB.y,
                         duration: 220, onComplete: () => { this._ball.setVisible(false); onDone(); } });
                       else { this._ball.setVisible(false); onDone(); }
+
                     } else if (result === 'INCOMPLETE') {
-                      this.tweens.add({ targets: this._ball, y: dest.y + 26, alpha: 0,
-                        duration: 230, ease: 'Power2.easeIn',
+                      this.tweens.add({ targets: this._ball, y: dest.y + 28, alpha: 0,
+                        duration: 240, ease: 'Power2.easeIn',
                         onComplete: () => { this._ball.setAlpha(1).setVisible(false); onDone(); } });
+
                     } else {
-                      // YAC — receiver runs after catch
+                      // Catch: check if a DB is right on the receiver
+                      let nearestDB = Infinity;
+                      for (const [, dbS] of defDBs) {
+                        if (!dbS?.active) continue;
+                        nearestDB = Math.min(nearestDB, Math.hypot(dbS.x - dest.x, dbS.y - dest.y));
+                      }
+                      const ctc = chosenS?._player?.stats?.ctc ?? 7;
+                      // Drops are very rare — only when DB is right on the receiver
+                      if (nearestDB < 36 && Math.random() > Math.min(0.96, ctc / 10)) {
+                        this.tweens.add({ targets: this._ball, y: dest.y + 28, alpha: 0,
+                          duration: 240, ease: 'Power2.easeIn',
+                          onComplete: () => { this._ball.setAlpha(1).setVisible(false); onDone(); } });
+                        return;
+                      }
+
+                      // Clean catch — ball goes into receiver's hands visually
                       this._ball.setVisible(false);
+                      if (chosenS?.active && chosen) {
+                        this._setCarrierBall(chosenS);
+                        this._ballCarrierKey = chosen[0];
+                      }
+
                       const wrSpd = chosenS?._player?.stats?.spd ?? 6;
                       const wrAgi = chosenS?._player?.stats?.agi ?? 6;
                       const yacYards = Math.max(0, Math.round((wrSpd + wrAgi - 8) / 3 + Math.random() * 3));
+
                       if (chosenS && yacYards > 0) {
-                        const yacX = Phaser.Math.Clamp(dest.x + offDir * yacYards * YW, CFG.EZ_W+5, CFG.FIELD_WORLD_W-CFG.EZ_W-5);
+                        const yacX = Phaser.Math.Clamp(dest.x + offDir * yacYards * YW, EZ_W+5, CFG.FIELD_WORLD_W-EZ_W-5);
                         const yacY = Phaser.Math.Clamp(dest.y + (Math.random()-0.5)*22, CFG.FIELD_FAR_Y+5, CFG.FIELD_NEAR_Y-5);
                         this.tweens.add({
                           targets: chosenS, x: yacX, y: yacY, scale: screenYToScale(yacY),
