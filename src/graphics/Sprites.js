@@ -88,12 +88,11 @@ export function drawPlayerSprite(g, primary, secondary, isControlled, isBallCarr
   }
 }
 
-// ─── Field background (render texture) ───────────────────────────────────
+// ─── Field background (direct graphics — more reliable than render texture) ──
 export function createFieldTexture(scene, teamColors = {}) {
   const fw = CFG.FIELD_WORLD_W;
   const fh = CFG.FIELD_WORLD_H;
-  const rt = scene.add.renderTexture(0, 0, fw, fh);
-  const g  = scene.make.graphics({ x: 0, y: 0, add: false });
+  const g  = scene.add.graphics().setDepth(0);
 
   const EZ_W   = CFG.EZ_W;
   const PLAY_W = fw - EZ_W * 2;
@@ -108,11 +107,11 @@ export function createFieldTexture(scene, teamColors = {}) {
   const awayP = teamColors.awayPrimary   ?? 0x8b0000;
   const awayS = teamColors.awaySecondary ?? 0xc8c8c8;
 
-  // Upper stadium concrete
-  g.fillStyle(0x1e1e28);
-  g.fillRect(0, 0, fw, FAR_Y);
+  // Full world background
+  g.fillStyle(0x1a1a24);
+  g.fillRect(0, 0, fw, fh);
 
-  // Upper stands — far crowd fills entire concrete strip above field
+  // Far crowd strip
   _drawCrowd(g, fw, 2, FAR_Y - 4, homeP, homeS, 0.72);
 
   // Alternating green stripes (10-yard sections)
@@ -122,17 +121,17 @@ export function createFieldTexture(scene, teamColors = {}) {
     g.fillRect(x, FAR_Y, YW * 10, NEAR_Y - FAR_Y);
   }
 
-  // End zones
-  g.fillStyle(CFG.COLORS.ENDZONE_A);
+  // End zones — team colors
+  g.fillStyle(homeP);
   g.fillRect(0, FAR_Y, EZ_W, NEAR_Y - FAR_Y);
-  g.fillStyle(CFG.COLORS.ENDZONE_B);
+  g.fillStyle(awayP);
   g.fillRect(fw - EZ_W, FAR_Y, EZ_W, NEAR_Y - FAR_Y);
 
   // Sidelines
   g.lineStyle(3, CFG.COLORS.LINE);
   g.strokeRect(EZ_W, FAR_Y, PLAY_W, NEAR_Y - FAR_Y);
 
-  // Goal lines (bright yellow)
+  // Goal lines
   g.lineStyle(3, 0xffee00);
   g.beginPath(); g.moveTo(EZ_W, FAR_Y); g.lineTo(EZ_W, NEAR_Y); g.strokePath();
   g.beginPath(); g.moveTo(fw - EZ_W, FAR_Y); g.lineTo(fw - EZ_W, NEAR_Y); g.strokePath();
@@ -145,7 +144,7 @@ export function createFieldTexture(scene, teamColors = {}) {
     g.beginPath(); g.moveTo(x, FAR_Y); g.lineTo(x, NEAR_Y); g.strokePath();
   }
 
-  // Hash marks (far and near)
+  // Hash marks
   g.lineStyle(2, CFG.COLORS.HASH, 0.8);
   for (let y = 1; y < 100; y++) {
     const x = EZ_W + y * YW;
@@ -153,13 +152,10 @@ export function createFieldTexture(scene, teamColors = {}) {
     g.beginPath(); g.moveTo(x - 2, NEAR_H); g.lineTo(x + 2, NEAR_H); g.strokePath();
   }
 
-  // Yard numbers
-  _drawYardNumbers(scene, rt, g, EZ_W, YW, FAR_Y, NEAR_Y);
-
-  // Goal posts (right end zone)
+  // Goal posts
   _drawGoalPost(g, fw - EZ_W + 12, (FAR_Y + NEAR_Y) / 2);
 
-  // Perspective depth lines on field (subtle)
+  // Perspective depth lines (subtle)
   g.lineStyle(1, 0x000000, 0.06);
   for (let i = 0; i < 20; i++) {
     const t = i / 20;
@@ -167,9 +163,10 @@ export function createFieldTexture(scene, teamColors = {}) {
     g.beginPath(); g.moveTo(0, y); g.lineTo(fw, y); g.strokePath();
   }
 
-  rt.draw(g, 0, 0);
-  g.destroy();
-  return rt;
+  // Yard numbers as live text objects (depth 1 to sit above field graphics)
+  _drawYardNumbers(scene, EZ_W, YW, FAR_Y, NEAR_Y);
+
+  return g;
 }
 
 function _drawCrowd(g, fw, startY, h, primaryColor, secondaryColor, homeFraction) {
@@ -214,21 +211,18 @@ function _drawGoalPost(g, x, cy) {
   g.beginPath(); g.moveTo(x, cy - 36); g.lineTo(x + 22, cy - 50); g.strokePath();
 }
 
-function _drawYardNumbers(scene, rt, g, EZ_W, YW, FAR_Y, NEAR_Y) {
+function _drawYardNumbers(scene, EZ_W, YW, FAR_Y, NEAR_Y) {
   const nums = [10,20,30,40,50,40,30,20,10];
   nums.forEach((n, i) => {
     const x = EZ_W + (i + 1) * 10 * YW;
-    // Draw text by creating a temp text and drawing to rt
-    const t1 = scene.add.text(x, FAR_Y + 10, `${n}`, {
+    scene.add.text(x, FAR_Y + 10, `${n}`, {
       fontSize: '12px', fontFamily: 'monospace', color: '#ffffff',
       stroke: '#000000', strokeThickness: 2,
-    }).setOrigin(0.5, 0).setAlpha(0.9);
-    const t2 = scene.add.text(x, NEAR_Y - 10, `${n}`, {
+    }).setOrigin(0.5, 0).setAlpha(0.9).setDepth(1);
+    scene.add.text(x, NEAR_Y - 10, `${n}`, {
       fontSize: '12px', fontFamily: 'monospace', color: '#ffffff',
       stroke: '#000000', strokeThickness: 2,
-    }).setOrigin(0.5, 1).setAlpha(0.9);
-    rt.draw(t1); rt.draw(t2);
-    t1.destroy(); t2.destroy();
+    }).setOrigin(0.5, 1).setAlpha(0.9).setDepth(1);
   });
 }
 
