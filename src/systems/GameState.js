@@ -42,22 +42,28 @@ export class GameState {
     this.possession = 1 - this.possession;
     this.down = 1;
     this.yardsToGo = 10;
-    this.ballYard = newBallYard !== undefined ? newBallYard : (100 - this.ballYard);
-    this.firstDownYard = Math.min(100, this.ballYard + 10);
+    if (newBallYard !== undefined) this.ballYard = newBallYard;
+    // ballYard is a unified field coordinate (0=left EZ, 100=right EZ). Don't flip it.
+    const offDir = this.possession === 0 ? 1 : -1;
+    this.firstDownYard = Math.min(100, Math.max(0, this.ballYard + 10 * offDir));
   }
 
   nextDown(yardsGained) {
+    // offDir: team 0 goes toward yard 100 (right), team 1 toward yard 0 (left)
+    const offDir = this.possession === 0 ? 1 : -1;
     this.stats[this.possession].totalYds += yardsGained;
-    this.ballYard = Math.min(100, Math.max(0, this.ballYard + yardsGained));
-    this.yardsToGo = Math.max(0, this.yardsToGo - yardsGained);
+    const newYard = this.ballYard + yardsGained * offDir;
 
-    if (this.ballYard >= 100) {
-      return 'TOUCHDOWN';
-    }
+    if (offDir === 1 && newYard >= 100) { this.ballYard = 100; return 'TOUCHDOWN'; }
+    if (offDir === -1 && newYard <= 0)  { this.ballYard = 0;   return 'TOUCHDOWN'; }
+
+    this.ballYard   = Math.min(100, Math.max(0, newYard));
+    this.yardsToGo  = Math.max(0, this.yardsToGo - yardsGained);
+
     if (this.yardsToGo <= 0) {
       this.down = 1;
       this.yardsToGo = 10;
-      this.firstDownYard = Math.min(100, this.ballYard + 10);
+      this.firstDownYard = Math.min(100, Math.max(0, this.ballYard + 10 * offDir));
       return 'FIRST_DOWN';
     }
     if (this.down >= 4) {
@@ -76,10 +82,12 @@ export class GameState {
     this.clock = CFG.QUARTER_SECONDS;
     if (this.quarter === 3) {
       this.possession = 1 - this.possession;
-      this.ballYard = 25;
       this.down = 1;
       this.yardsToGo = 10;
-      this.firstDownYard = 35;
+      // Place ball at the new offense's own 25 in unified field coordinates
+      const offDir = this.possession === 0 ? 1 : -1;
+      this.ballYard      = offDir === 1 ? 25 : 75;
+      this.firstDownYard = offDir === 1 ? 35 : 65;
     }
   }
 

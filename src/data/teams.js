@@ -120,7 +120,7 @@ function buildRoster(t) {
     ss: Math.max(MIN, t.stStart),  sb: Math.max(MIN-1, t.stBack),
   };
 
-  return [
+  const players = [
     // QB x3
     makeQB(p(QB_L),os), makeQB(p(QB_L),ob), makeQB(p(QB_L),ot),
     // RB x4
@@ -155,6 +155,26 @@ function buildRoster(t) {
     // K + P
     makeK(p(K_L),ss), makeP(p(P_L),ss),
   ];
+
+  // Assign jersey numbers — unique within team, position-appropriate ranges
+  const numRanges = {
+    QB:[1,19], RB:[20,49], FB:[44,49], WR:[10,89], TE:[80,89],
+    LT:[50,79], LG:[50,79], C:[50,79], RG:[50,79], RT:[50,79],
+    DE:[90,99], DT:[90,99], MLB:[40,59], OLB:[40,59],
+    CB:[20,39], FS:[20,39], SS:[20,39], K:[1,19], P:[1,19],
+  };
+  const usedNums = new Set();
+  for (const pl of players) {
+    const [lo, hi] = numRanges[pl.pos] || [1, 99];
+    let n;
+    for (let tries = 0; tries < 60; tries++) {
+      n = lo + Math.floor(Math.random() * (hi - lo + 1));
+      if (!usedNums.has(n)) break;
+    }
+    usedNums.add(n);
+    pl.num = n;
+  }
+  return players;
 }
 
 // ─── 10 Team definitions ─────────────────────────────────────────────────────

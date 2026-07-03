@@ -53,10 +53,10 @@ export class GameScene extends Phaser.Scene {
     for (const key of Object.keys(this._sprites)) {
       const s = this._sprites[key];
       if (!s) continue;
-      // destroy all tracked children
       s._label?.destroy();
       s._fatDot?.destroy();
       s._shadow?.destroy();
+      s._numLabel?.destroy();
       s.destroy();
     }
     this._sprites = {};
@@ -69,17 +69,24 @@ export class GameScene extends Phaser.Scene {
     const g = this.add.graphics();
     g.setPosition(sx, sy);
     g.setScale(scale);
-    g.setDepth(Math.round(sy));    // y-sort depth
+    g.setDepth(Math.round(sy));
 
     drawPlayerSprite(g, primary, secondary, isControlled, isBallCarrier);
     g._primary   = primary;
     g._secondary = secondary;
 
-    // Position label
+    // Position label (pos abbreviation above helmet)
     const label = this.add.text(sx, sy - 26 * scale, pos, {
       fontSize: '8px', fontFamily: 'monospace', color: '#ffffff',
       stroke: '#000000', strokeThickness: 2,
     }).setOrigin(0.5).setDepth(Math.round(sy) + 1);
+
+    // Jersey number on body
+    const secHex = '#' + secondary.toString(16).padStart(6, '0');
+    const numLabel = this.add.text(sx, sy + 2 * scale, player?.num !== undefined ? String(player.num) : '', {
+      fontSize: '7px', fontFamily: 'monospace', fontStyle: 'bold',
+      color: secHex, stroke: '#000000', strokeThickness: 1,
+    }).setOrigin(0.5).setDepth(Math.round(sy) + 2);
 
     // Fatigue dot
     const fatigue = player?.fatigue || 0;
@@ -88,10 +95,11 @@ export class GameScene extends Phaser.Scene {
       .setDepth(Math.round(sy) + 1);
 
     g._label    = label;
+    g._numLabel = numLabel;
     g._fatDot   = fatDot;
     g._player   = player;
     g._posKey   = pos;
-    g._controlled  = isControlled;
+    g._controlled    = isControlled;
     g._isBallCarrier = isBallCarrier;
     g._fieldY   = 0;
     g._vx = 0; g._vy = 0;
@@ -106,9 +114,11 @@ export class GameScene extends Phaser.Scene {
     if (!s?.active) return;
     const sc = s.scale;
     s._label?.setPosition(s.x, s.y - 26 * sc);
+    s._numLabel?.setPosition(s.x, s.y + 2 * sc);
     s._fatDot?.setPosition(s.x + 12 * sc, s.y - 22 * sc);
     s.setDepth(Math.round(s.y));
     s._label?.setDepth(Math.round(s.y) + 1);
+    s._numLabel?.setDepth(Math.round(s.y) + 2);
     s._fatDot?.setDepth(Math.round(s.y) + 1);
   }
 
@@ -491,8 +501,9 @@ export class GameScene extends Phaser.Scene {
     recvBtn.on('pointerdown', () => {
       this._clearOverlays();
       this.gs.possession = this.gs.playerTeamIdx;
-      this.gs.ballYard   = 25;
-      this.gs.firstDownYard = 35;
+      const offDir = this.gs.possession === 0 ? 1 : -1;
+      this.gs.ballYard = offDir === 1 ? 25 : 75;
+      this.gs.firstDownYard = offDir === 1 ? 35 : 65;
       this._updateFieldMarkers();
       this._setUpFormation();
       this._panToYard(this.gs.ballYard, true);
@@ -508,9 +519,10 @@ export class GameScene extends Phaser.Scene {
   _startKickoff() {
     const kickingTeam = this.gs.teams[1 - this.gs.possession];
     const returnYard  = this.ai.resolveKickoff(kickingTeam);
-    this.gs.ballYard  = returnYard;
+    const offDir = this.gs.possession === 0 ? 1 : -1;
+    this.gs.ballYard = offDir === 1 ? returnYard : (100 - returnYard);
     this.gs.down = 1; this.gs.yardsToGo = 10;
-    this.gs.firstDownYard = Math.min(100, returnYard + 10);
+    this.gs.firstDownYard = Math.min(100, Math.max(0, this.gs.ballYard + 10 * offDir));
     this._showToast(`KICKOFF → Ball at the ${returnYard} yard line`, 1800);
     this.time.delayedCall(2000, () => {
       this._updateFieldMarkers();
@@ -695,19 +707,18 @@ export class GameScene extends Phaser.Scene {
         });
       }
 
-      // LBs and DBs pursue toward ball carrier destination from snap
+      // LBs and DBs react at the snap — step forward toward LOS to show pursuit intent
+      // (they do NOT pre-run to the carrier destination; _animatePursuit handles the actual chase)
       for (const [, s] of [...defLBs, ...defDBs]) {
-        const spd = s._player?.stats?.spd ?? 6;
-        const agi = s._player?.stats?.agi ?? 6;
-        const pxPerMs = 0.18 + (spd + agi) / 20 * 0.32;
-        const dist = Math.hypot(s.x - finalX, s.y - finalY);
-        const dur  = Math.max(480, Math.min(1300, dist / pxPerMs));
-        const px = Phaser.Math.Clamp(finalX + (Math.random()-0.5)*50, EZ_W+5, CFG.FIELD_WORLD_W-EZ_W-5);
-        const py = Phaser.Math.Clamp(finalY + (Math.random()-0.5)*35, CFG.FIELD_FAR_Y+5, CFG.FIELD_NEAR_Y-5);
+        const sp = s._player?.stats?.spd ?? 6;
+        const ag = s._player?.stats?.agi ?? 6;
+        const rushX = Phaser.Math.Clamp(s.x + offDir * (18 + Math.random() * 32), EZ_W+5, CFG.FIELD_WORLD_W-EZ_W-5);
+        const rushY = Phaser.Math.Clamp(s.y + (Math.random()-0.5)*22, CFG.FIELD_FAR_Y+5, CFG.FIELD_NEAR_Y-5);
+        const rushDur = Math.max(340, Math.min(680, 560 - (sp + ag) / 2 * 18));
         this.tweens.add({
-          targets: s, x: px, y: py, scale: screenYToScale(py),
-          duration: dur, delay: 150 + Math.random() * 180,
-          ease: 'Sine.easeIn', onUpdate: () => this._syncLabel(s),
+          targets: s, x: rushX, y: rushY, scale: screenYToScale(rushY),
+          duration: rushDur, delay: 110 + Math.random() * 160,
+          ease: 'Power2.easeIn', onUpdate: () => this._syncLabel(s),
         });
       }
 
@@ -1067,7 +1078,7 @@ export class GameScene extends Phaser.Scene {
     // Primary tackler arrives first
     const { dS: tackler, dist, spd, agi } = sorted[0];
     const pxPerMs = 0.22 + (spd + agi) / 20 * 0.38;
-    const dur = Math.max(100, Math.min(550, dist / pxPerMs));
+    const dur = Math.max(380, Math.min(820, dist / pxPerMs));
     this.tweens.add({
       targets: tackler,
       x: carrierS.x + (Math.random() - 0.5) * 8,
@@ -1082,7 +1093,7 @@ export class GameScene extends Phaser.Scene {
       const { dS, dist: d, spd: sp, agi: ag } = sorted[i];
       if (d > 520) continue;
       const sp2 = 0.22 + (sp + ag) / 20 * 0.38;
-      const d2  = Math.max(140, Math.min(700, d / sp2));
+      const d2  = Math.max(350, Math.min(900, d / sp2));
       this.tweens.add({
         targets: dS,
         x: carrierS.x + (Math.random() - 0.5) * 26,
@@ -1252,20 +1263,27 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    const offDir = gs.possession === 0 ? 1 : -1;
     const changePoss =
       downResult === 'TURNOVER_ON_DOWNS' || outcome.isTurnover ||
       outcome.result === 'FG_GOOD' || outcome.result === 'FG_MISS' || outcome.result === 'PUNT';
 
-    if (changePoss) {
-      const puntYard = outcome.result === 'PUNT'
-        ? Math.max(0, Math.min(95, 100 - gs.ballYard - outcome.yards))
-        : 25;
-      gs.changePossession(changePoss && outcome.result === 'PUNT' ? puntYard : undefined);
-    }
-
     if (downResult === 'TOUCHDOWN') {
       gs.scorePoints(gs.possession, 1); // PAT
-      gs.changePossession(25);
+      const newPoss = 1 - gs.possession;
+      const newDir  = newPoss === 0 ? 1 : -1;
+      gs.changePossession(newDir === 1 ? 25 : 75);
+    } else if (changePoss) {
+      if (outcome.result === 'PUNT') {
+        const puntLanding = Phaser.Math.Clamp(gs.ballYard + offDir * outcome.yards, 5, 95);
+        gs.changePossession(puntLanding);
+      } else if (outcome.result === 'FG_GOOD') {
+        const newPoss = 1 - gs.possession;
+        const newDir  = newPoss === 0 ? 1 : -1;
+        gs.changePossession(newDir === 1 ? 25 : 75);
+      } else {
+        gs.changePossession(); // turnover / FG_MISS — ball stays at current yard
+      }
     }
 
     this._updateHUD();
@@ -1291,6 +1309,7 @@ export class GameScene extends Phaser.Scene {
       const isOff = key.startsWith('off_');
       const hx = isOff ? offHuddleX : defHuddleX;
       s._label?.setAlpha(0);
+      s._numLabel?.setAlpha(0);
       s._fatDot?.setAlpha(0);
       this.tweens.add({ targets: s,
         x: hx + (Math.random()-0.5)*26, y: midY + (Math.random()-0.5)*18,
@@ -1312,11 +1331,12 @@ export class GameScene extends Phaser.Scene {
         const destX = s._baseX, destY = s._baseY;
         s.setPosition(hx + (Math.random()-0.5)*22, midY + (Math.random()-0.5)*14);
         s._label?.setAlpha(0);
+        s._numLabel?.setAlpha(0);
         s._fatDot?.setAlpha(0);
         this.tweens.add({ targets: s, x: destX, y: destY, scale: screenYToScale(destY),
           duration: 520, delay: Math.random() * 160, ease: 'Power2.easeOut',
           onUpdate: () => this._syncLabel(s),
-          onComplete: () => { s._label?.setAlpha(1); s._fatDot?.setAlpha(1); } });
+          onComplete: () => { s._label?.setAlpha(1); s._numLabel?.setAlpha(1); s._fatDot?.setAlpha(1); } });
       }
       this.time.delayedCall(780, () => onDone?.());
     });

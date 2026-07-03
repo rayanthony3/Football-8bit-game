@@ -11,10 +11,12 @@ export class AISystem {
     const plays = CFG.OFFENSE_PLAYS.filter(p => p.type !== 'KICK');
     const kickPlays = CFG.OFFENSE_PLAYS.filter(p => p.type === 'KICK');
     const { down, yardsToGo, ballYard, quarter, clock } = gs;
+    const offDir = gs.possession === 0 ? 1 : -1;
+    const yardsFromOppEnd = offDir === 1 ? (100 - ballYard) : ballYard;
 
     if (down === 4) {
-      const fg = ballYard >= 65;
-      const punt = ballYard < 55 && !(quarter === 4 && clock < 90);
+      const fg = yardsFromOppEnd <= 35;
+      const punt = yardsFromOppEnd > 55 && !(quarter === 4 && clock < 90);
       if (fg) return kickPlays.find(p => p.id === 'fg') || plays[0];
       if (punt) return kickPlays.find(p => p.id === 'pu') || plays[0];
     }
@@ -152,7 +154,9 @@ export class AISystem {
                      this.rs.getActiveStarter(offTeam, 'P');
       const kRating = kicker ? this.rs.getEffectiveRating(kicker) : 5;
       if (offPlay.id === 'fg') {
-        const distance = 100 - gs.ballYard + 17;
+        const offDir2 = gs.possession === 0 ? 1 : -1;
+        const ydsFromEnd = offDir2 === 1 ? (100 - gs.ballYard) : gs.ballYard;
+        const distance = ydsFromEnd + 17;
         const maxRange = kRating * 5 + 25;
         if (distance > maxRange) {
           narrative = `Field goal attempt from ${distance} yards... NO GOOD! Out of range!`;
